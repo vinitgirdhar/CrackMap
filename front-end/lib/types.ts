@@ -123,4 +123,4 @@ export interface DatasetStats {
   class_distribution: Record<string, number>;
 }
 
-export type TabKey = "detect" | "analytics" | "train";
+export type TabKey = "detect" | "analytics";

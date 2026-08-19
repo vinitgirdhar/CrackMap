@@ -7,7 +7,6 @@ import type { SystemInfo, TabKey } from "@/lib/types";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "detect", label: "AI Inspector" },
   { key: "analytics", label: "Dataset Analytics" },
-  { key: "train", label: "Train Model" },
 ];
 
 interface TopNavBarProps {

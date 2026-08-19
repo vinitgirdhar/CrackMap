@@ -7,7 +7,6 @@ import { StepperPipeline } from "@/components/StepperPipeline";
 import { SubNavRow } from "@/components/SubNavRow";
 import { DetectorView } from "@/components/DetectorView";
 import { AnalyticsView } from "@/components/AnalyticsView";
-import { TrainView } from "@/components/TrainView";
 import { getSystemInfo } from "@/lib/api";
 import { useDashboardSummary } from "@/lib/hooks/useDashboardSummary";
 import type { SystemInfo, TabKey } from "@/lib/types";
@@ -39,9 +38,6 @@ export default function Home() {
       </div>
       <div className="workspace-container" style={{ display: activeTab === "analytics" ? "block" : "none" }}>
         <AnalyticsView isActive={activeTab === "analytics"} />
-      </div>
-      <div className="workspace-container" style={{ display: activeTab === "train" ? "block" : "none" }}>
-        <TrainView onDashboardRefetch={refetch} />
       </div>
     </div>
   );

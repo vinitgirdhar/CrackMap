@@ -9,7 +9,6 @@ import { SettingsModal } from "./SettingsModal";
 const SUB_TABS: { key: TabKey; label: string }[] = [
   { key: "detect", label: "Inspection Studio" },
   { key: "analytics", label: "Dataset Analytics" },
-  { key: "train", label: "Model Fine-Tuning" },
 ];
 
 interface SubNavRowProps {

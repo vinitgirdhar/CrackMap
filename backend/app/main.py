@@ -303,7 +303,8 @@ async def get_gis_data():
     ]
 
 
-@app.post("/api/train-model", response_model=StartTrainingResultResponse, tags=["Training"])
+# [ARCHIVED / DEMO STUB] Left in place for backend API compatibility; UI archived to front-end/_archive/
+@app.post("/api/train-model", response_model=StartTrainingResultResponse, tags=["Training (Archived)"])
 async def start_training(
     epochs: int = Form(5),
     batch_size: int = Form(4),
@@ -318,7 +319,8 @@ async def start_training(
     )
 
 
-@app.get("/api/train-status", response_model=TrainingJobStatusResponse, tags=["Training"])
+# [ARCHIVED / DEMO STUB] Left in place for backend API compatibility; UI archived to front-end/_archive/
+@app.get("/api/train-status", response_model=TrainingJobStatusResponse, tags=["Training (Archived)"])
 async def get_training_status():
     return TrainingJobStatusResponse(
         status="idle",
@@ -332,7 +334,8 @@ async def get_training_status():
     )
 
 
-@app.post("/api/upload-pothole-images", response_model=UploadPotholeImagesResponse, tags=["Training"])
+# [ARCHIVED / DEMO STUB] Left in place for backend API compatibility; UI archived to front-end/_archive/
+@app.post("/api/upload-pothole-images", response_model=UploadPotholeImagesResponse, tags=["Training (Archived)"])
 async def upload_pothole_images(
     files: List[UploadFile] = File(...),
 ):
