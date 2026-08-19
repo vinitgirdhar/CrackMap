@@ -38,6 +38,8 @@ def test_detect_from_sample():
     assert "original_image" in data
     assert data["original_image"].startswith("data:image/jpeg;base64,")
     assert isinstance(data["boxes"], list)
+    assert "composite_damage_score" in data
+    assert "pci_score" not in data
 
 def test_dashboard_summary():
     res = client.get("/api/dashboard-summary")

@@ -8,10 +8,11 @@ export interface DashboardSummary {
   cracks_count: number;
   other_count: number;
   avg_severity: number;
-  pci_score: number;
+  composite_damage_score: number;
   surveyed_area_m2: number;
   verified_pavement_m2: number;
   class_distribution: Record<string, number>;
+  is_demo_data?: boolean;
 }
 
 export interface SystemInfo {
@@ -46,7 +47,7 @@ export interface DetectionResult {
   inference_time_ms: number;
   total_defects: number;
   severity_score: number;
-  pci_score: number;
+  composite_damage_score: number;
   boxes: DetectionBox[];
   annotated_image: string;
   original_image: string;
@@ -124,4 +125,4 @@ export interface DatasetStats {
   class_distribution: Record<string, number>;
 }
 
-export type TabKey = "detect" | "gis" | "analytics" | "train";
+export type TabKey = "detect" | "analytics" | "train";

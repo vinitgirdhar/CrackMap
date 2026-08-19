@@ -49,7 +49,7 @@ class DetectionResultResponse(BaseModel):
     inference_time_ms: float
     total_defects: int
     severity_score: float
-    pci_score: float
+    composite_damage_score: float
     boxes: List[DetectionBoxModel]
     annotated_image: str
     original_image: str
@@ -57,24 +57,22 @@ class DetectionResultResponse(BaseModel):
     results: Optional[List[CompanionImageResult]] = None
 
 class DashboardSummaryResponse(BaseModel):
-    dataset_name: str = "CrackMap Municipal Pavement Survey"
-    total_images: int = 1240
-    damaged_images: int = 890
-    undamaged_images: int = 350
-    total_defects: int = 1845
-    potholes_count: int = 742
-    cracks_count: int = 1103
+    dataset_name: str = "Annotated Potholes Benchmark (Roboflow/Kaggle)"
+    total_images: int = 665
+    damaged_images: int = 665
+    undamaged_images: int = 0
+    total_defects: int = 1739
+    potholes_count: int = 1739
+    cracks_count: int = 0
     other_count: int = 0
-    avg_severity: float = 2.4
-    pci_score: float = 78.5
-    surveyed_area_m2: int = 45200
-    verified_pavement_m2: int = 38900
+    avg_severity: float = 2.62
+    composite_damage_score: float = 82.0
+    surveyed_area_m2: int = 665
+    verified_pavement_m2: int = 665
     class_distribution: Dict[str, int] = {
-        "D00": 340,
-        "D10": 280,
-        "D20": 483,
-        "D40": 742,
+        "pothole": 1739,
     }
+    is_demo_data: bool = False
 
 class GisDataPointModel(BaseModel):
     id: int
@@ -93,16 +91,14 @@ class GisDataPointModel(BaseModel):
     color_hex: str
 
 class DatasetStatsResponse(BaseModel):
-    total_images: int = 1240
-    damaged_images: int = 890
-    undamaged_images: int = 350
-    total_boxes: int = 1845
+    total_images: int = 665
+    damaged_images: int = 665
+    undamaged_images: int = 0
+    total_boxes: int = 1739
     class_distribution: Dict[str, int] = {
-        "D00": 340,
-        "D10": 280,
-        "D20": 483,
-        "D40": 742,
+        "pothole": 1739,
     }
+    is_demo_data: bool = False
 
 class TrainingLossEntry(BaseModel):
     epoch: int

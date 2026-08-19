@@ -23,10 +23,10 @@ export function AnalyticsView({ isActive }: AnalyticsViewProps) {
     <div>
       <h3 className="section-headline">
         <BarChart3 size={20} />
-        Road Damage Dataset & Analytics Explorer
+        Road Damage Dataset & Model Benchmark Analytics
       </h3>
       <p className="section-subtext">
-        PASCAL VOC annotation distribution, damage frequencies, and format converters.
+        Ground-truth training annotations, class distribution, and detection benchmark metrics for the single-class YOLOv8 pothole model.
       </p>
 
       {!stats && <p>Loading live dataset statistics...</p>}
@@ -35,23 +35,23 @@ export function AnalyticsView({ isActive }: AnalyticsViewProps) {
         <>
           <div className="analytics-chips">
             <div className="analytics-chip">
-              <strong>Total Images:</strong> {stats.total_images}
+              <strong>Annotated Frames:</strong> {stats.total_images}
             </div>
             <div className="analytics-chip peach">
               <strong>Damaged Frames:</strong> {stats.damaged_images}
             </div>
             <div className="analytics-chip sky">
-              <strong>Total Defects:</strong> {stats.total_boxes}
+              <strong>Total Pothole Instances:</strong> {stats.total_boxes}
             </div>
           </div>
 
-          <h4 className="analytics-heading">Damage Class Distribution (VOC Dataset)</h4>
+          <h4 className="analytics-heading">Model Class Distribution (Training Corpus)</h4>
           <div className="class-dist-grid">
             {Object.entries(stats.class_distribution || {}).map(([cls, count]) => (
               <div className="class-dist-card" key={cls}>
-                <span className="class-dist-code">{cls}</span>
+                <span className="class-dist-code">{cls.toUpperCase()}</span>
                 <div className="class-dist-count">{count}</div>
-                <span className="class-dist-label">Defect Instances</span>
+                <span className="class-dist-label">Annotated Instances</span>
               </div>
             ))}
           </div>

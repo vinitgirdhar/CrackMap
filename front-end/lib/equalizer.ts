@@ -37,13 +37,19 @@ const MICRO_BAR_CLASSES: { code: string; label: string }[] = [
 export function computeMicroBars(
   classDistribution: Record<string, number>
 ): MicroBar[] {
+  const getVal = (code: string) => {
+    if (classDistribution[code] !== undefined) return classDistribution[code];
+    if (code === "D40" && classDistribution["pothole"] !== undefined) return classDistribution["pothole"];
+    return 0;
+  };
+
   const maxVal = Math.max(
     1,
-    ...MICRO_BAR_CLASSES.map((k) => classDistribution[k.code] ?? 0)
+    ...MICRO_BAR_CLASSES.map((k) => getVal(k.code))
   );
 
   return MICRO_BAR_CLASSES.map((k) => {
-    const value = classDistribution[k.code] ?? 0;
+    const value = getVal(k.code);
     const pct = Math.max(15, Math.round((value / maxVal) * 90));
     return { code: k.code, label: k.label, value, pct };
   });

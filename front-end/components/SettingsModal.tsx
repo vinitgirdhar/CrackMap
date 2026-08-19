@@ -99,7 +99,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
             <div>
               <h3>System Settings & Preferences</h3>
-              <p>Configure API endpoints, telemetry polling, and GIS map layers</p>
+              <p>Configure API endpoints, telemetry polling, and inspection overlays</p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose} type="button" aria-label="Close modal">
@@ -150,35 +150,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             )}
           </div>
 
-          {/* GIS Tile Layer */}
-          <div className="settings-section">
-            <div className="section-label-group">
-              <Globe size={16} className="section-icon" />
-              <h4>GIS Map Basemap Style</h4>
-            </div>
-            <div className="tile-layer-grid">
-              {[
-                { id: "carto-light" as const, title: "Light Canvas", desc: "Clean high-contrast road lines" },
-                { id: "carto-dark" as const, title: "Dark Obsidian", desc: "Night telemetry & glowing markers" },
-                { id: "osm" as const, title: "OpenStreetMap", desc: "Standard detailed street topology" },
-              ].map((layer) => (
-                <button
-                  key={layer.id}
-                  type="button"
-                  onClick={() => setSettings({ ...settings, mapTileLayer: layer.id })}
-                  className={`layer-option-card${settings.mapTileLayer === layer.id ? " active" : ""}`}
-                >
-                  <div className="layer-header">
-                    <span className="layer-title">{layer.title}</span>
-                    {settings.mapTileLayer === layer.id && <Check size={14} className="check-icon" />}
-                  </div>
-                  <span className="layer-desc">{layer.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Telemetry Polling */}
+            {/* Telemetry Polling */}
           <div className="settings-section">
             <div className="section-label-group">
               <RefreshCw size={16} className="section-icon" />

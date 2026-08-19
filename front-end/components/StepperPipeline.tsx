@@ -2,7 +2,6 @@ import { Check } from "lucide-react";
 
 interface StepperPipelineProps {
   hasSurveyData: boolean;
-  gisDataLoaded: boolean;
 }
 
 interface StepNode {
@@ -11,27 +10,20 @@ interface StepNode {
 }
 
 /**
- * Each node reflects a real backend capability, not decoration:
- * road-corridor masking and AI defect localization run on every
- * /api/detect call, so they're always "done" capabilities. Hotspot
- * search reflects whether GIS data has actually been loaded this
- * session. The original's "Municipal Dispatch" / "Contractor Repair"
- * nodes had no backing capability and were cut rather than faked.
+ * Each node reflects a real backend capability:
+ * - Input road imagery ingestion
+ * - YOLOv8 pothole defect localization
+ * - Frame-coverage severity and damage rating
  */
-export function StepperPipeline({ hasSurveyData, gisDataLoaded }: StepperPipelineProps) {
+export function StepperPipeline({ hasSurveyData }: StepperPipelineProps) {
   const nodes: StepNode[] = [
-    { label: "Capture Road Footage", state: hasSurveyData ? "done" : "pending" },
-    { label: "Asphalt Corridor Masking", state: "done" },
-    { label: "AI Defect Localization", state: "done" },
-    { label: "Real-time Hotspot Search", state: gisDataLoaded ? "done" : "active" },
+    { label: "Input Road Imagery", state: hasSurveyData ? "done" : "active" },
+    { label: "AI Pothole Localization", state: "done" },
+    { label: "Severity & Damage Assessment", state: "done" },
   ];
 
   const doneCount = nodes.filter((n) => n.state === "done").length;
 
-  // Nodes are flex:1, so node i's center sits at (i + 0.5) / n of the row.
-  // The track therefore starts at the first center and ends at the last one;
-  // the fill covers whole segments between completed nodes and is clamped so
-  // it can never run past the track (which used to overflow the page).
   const nodeCount = nodes.length;
   const edgePct = 50 / nodeCount;
   const trackWidthPct = 100 - 100 / nodeCount;

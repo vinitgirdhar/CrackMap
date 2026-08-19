@@ -185,44 +185,41 @@ async def detect_damage(
 @app.get("/api/dashboard-summary", response_model=DashboardSummaryResponse, tags=["Analytics"])
 async def get_dashboard_summary():
     return DashboardSummaryResponse(
-        dataset_name="CrackMap Municipal Pavement Survey",
-        total_images=1240,
-        damaged_images=890,
-        undamaged_images=350,
-        total_defects=1845,
-        potholes_count=742,
-        cracks_count=1103,
+        dataset_name="Annotated Potholes Benchmark (Roboflow/Kaggle)",
+        total_images=665,
+        damaged_images=665,
+        undamaged_images=0,
+        total_defects=1739,
+        potholes_count=1739,
+        cracks_count=0,
         other_count=0,
-        avg_severity=2.4,
-        pci_score=78.5,
-        surveyed_area_m2=45200,
-        verified_pavement_m2=38900,
+        avg_severity=2.62,
+        composite_damage_score=82.0,
+        surveyed_area_m2=665,
+        verified_pavement_m2=665,
         class_distribution={
-            "D00": 340,
-            "D10": 280,
-            "D20": 483,
-            "D40": 742,
+            "pothole": 1739,
         },
+        is_demo_data=False,
     )
 
 
 @app.get("/api/dataset-stats", response_model=DatasetStatsResponse, tags=["Analytics"])
 async def get_dataset_stats():
     return DatasetStatsResponse(
-        total_images=1240,
-        damaged_images=890,
-        undamaged_images=350,
-        total_boxes=1845,
+        total_images=665,
+        damaged_images=665,
+        undamaged_images=0,
+        total_boxes=1739,
         class_distribution={
-            "D00": 340,
-            "D10": 280,
-            "D20": 483,
-            "D40": 742,
+            "pothole": 1739,
         },
+        is_demo_data=False,
     )
 
 
-@app.get("/api/gis-data", response_model=List[GisDataPointModel], tags=["GIS"])
+# [ARCHIVED / DEMO STUB] Left in place for legacy API compatibility; not used in active UI pipeline.
+@app.get("/api/gis-data", response_model=List[GisDataPointModel], tags=["GIS (Archived)"])
 async def get_gis_data():
     return [
         GisDataPointModel(

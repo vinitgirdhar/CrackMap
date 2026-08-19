@@ -1,10 +1,9 @@
-import { ArrowUpRight, Zap } from "lucide-react";
+import { ArrowUpRight, Zap, Database } from "lucide-react";
 import type { DashboardSummary } from "@/lib/types";
 import { computeMicroBars, severityLevel } from "@/lib/equalizer";
 
 interface QuadrantGridProps {
   summary: DashboardSummary | null;
-  municipalityCount: number | null;
 }
 
 const SEVERITY_COPY: Record<string, { label: string; color: string }> = {
@@ -21,7 +20,7 @@ function ArrowBadge() {
   );
 }
 
-export function QuadrantGrid({ summary, municipalityCount }: QuadrantGridProps) {
+export function QuadrantGrid({ summary }: QuadrantGridProps) {
   const severity = summary ? SEVERITY_COPY[severityLevel(summary.avg_severity)] : null;
   const bars = computeMicroBars(summary?.class_distribution ?? {});
 
@@ -68,32 +67,35 @@ export function QuadrantGrid({ summary, municipalityCount }: QuadrantGridProps) 
 
       <div className="pastel-card sky">
         <div className="pastel-card-top">
-          <span className="pastel-title">Pavement Quality</span>
+          <span className="pastel-title">Composite Damage Score</span>
           <ArrowBadge />
         </div>
         <div>
           <div className="pastel-number">
-            {summary ? summary.pci_score : "--"}
-            <span className="pastel-unit"> %</span>
+            {summary ? summary.composite_damage_score : "--"}
+            <span className="pastel-unit"> /100</span>
           </div>
           <div className="pastel-sublabel" style={{ color: "#2563eb" }}>
             <Zap size={12} />
-            Real-time Dynamic
+            Frame-Coverage Heuristic
           </div>
         </div>
       </div>
 
       <div className="pastel-card ice">
         <div className="pastel-card-top">
-          <span className="pastel-title">Survey Coverage</span>
+          <span className="pastel-title">Training Benchmark</span>
           <ArrowBadge />
         </div>
         <div>
           <div className="pastel-number">
-            {municipalityCount ?? "--"}
-            <span className="pastel-unit"> municipalities</span>
+            {summary?.total_images ?? 665}
+            <span className="pastel-unit"> frames</span>
           </div>
-          <div className="pastel-sublabel">From live GIS survey data</div>
+          <div className="pastel-sublabel">
+            <Database size={12} style={{ display: "inline", marginRight: 4 }} />
+            Single-Class Pothole Detector
+          </div>
         </div>
       </div>
     </div>

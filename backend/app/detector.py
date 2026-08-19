@@ -62,10 +62,22 @@ class PotholeDetector:
         overlay = Image.new("RGBA", annotated.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # Try to load a clean font, fallback to default
-        try:
-            font = ImageFont.truetype("arial.ttf", size=max(14, int(min(image.size) * 0.025)))
-        except Exception:
+        FONT_CANDIDATES = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "arial.ttf",
+            "C:/Windows/Fonts/arialbd.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+        ]
+        font_size = max(14, int(min(image.size) * 0.025))
+        font = None
+        for font_path in FONT_CANDIDATES:
+            try:
+                font = ImageFont.truetype(font_path, size=font_size)
+                break
+            except Exception:
+                continue
+        if font is None:
             font = ImageFont.load_default()
 
         for d in detections:
@@ -197,8 +209,8 @@ class PotholeDetector:
         total_defects = len(boxes_out)
         avg_sev_score = round(total_severity_score / max(1, total_defects), 1) if total_defects > 0 else 0.0
 
-        # Calculate PCI (Pavement Condition Index: 0 to 100)
-        pci = max(15.0, round(100.0 - (total_defects * 12.0) - (avg_sev_score * 3.5), 1))
+        # Custom composite damage score (0 to 100, where 100 is pristine)
+        composite_score = max(15.0, round(100.0 - (total_defects * 12.0) - (avg_sev_score * 3.5), 1))
 
         annotated_b64 = self._image_to_base64(annotated_img)
         original_b64 = self._image_to_base64(image)
@@ -216,7 +228,7 @@ class PotholeDetector:
             inference_time_ms=elapsed_ms,
             total_defects=total_defects,
             severity_score=avg_sev_score,
-            pci_score=pci,
+            composite_damage_score=composite_score,
             boxes=boxes_out,
             annotated_image=annotated_b64,
             original_image=original_b64,

@@ -6,8 +6,7 @@ import type { SystemInfo, TabKey } from "@/lib/types";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "detect", label: "AI Inspector" },
-  { key: "gis", label: "GIS CrackMap" },
-  { key: "analytics", label: "Analytics" },
+  { key: "analytics", label: "Dataset Analytics" },
   { key: "train", label: "Train Model" },
 ];
 
