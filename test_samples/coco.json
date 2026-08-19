@@ -1,0 +1,124 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "sample_001.jpg",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "id": 2,
+      "file_name": "sample_002.jpg",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "id": 3,
+      "file_name": "sample_003.jpg",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "id": 4,
+      "file_name": "sample_004.jpg",
+      "width": 640,
+      "height": 480
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        191,
+        175,
+        57,
+        227
+      ],
+      "area": 12939,
+      "iscrowd": 0
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        155,
+        260,
+        373,
+        41
+      ],
+      "area": 15293,
+      "iscrowd": 0
+    },
+    {
+      "id": 3,
+      "image_id": 3,
+      "category_id": 3,
+      "bbox": [
+        188,
+        236,
+        270,
+        39
+      ],
+      "area": 10530,
+      "iscrowd": 0
+    },
+    {
+      "id": 4,
+      "image_id": 4,
+      "category_id": 6,
+      "bbox": [
+        327,
+        244,
+        126,
+        84
+      ],
+      "area": 10584,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "D00",
+      "supercategory": "Linear Crack"
+    },
+    {
+      "id": 2,
+      "name": "D01",
+      "supercategory": "Linear Crack"
+    },
+    {
+      "id": 3,
+      "name": "D10",
+      "supercategory": "Linear Crack"
+    },
+    {
+      "id": 4,
+      "name": "D11",
+      "supercategory": "Linear Crack"
+    },
+    {
+      "id": 5,
+      "name": "D20",
+      "supercategory": "Alligator Crack"
+    },
+    {
+      "id": 6,
+      "name": "D40",
+      "supercategory": "Surface Hazard"
+    },
+    {
+      "id": 7,
+      "name": "D43",
+      "supercategory": "Marking Degradation"
+    },
+    {
+      "id": 8,
+      "name": "D44",
+      "supercategory": "Marking Degradation"
+    }
+  ]
+}
