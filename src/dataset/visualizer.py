@@ -23,24 +23,32 @@ def hex_to_bgr(hex_color: str) -> tuple:
     return (b, g, r)
 
 
+def _rects_overlap(a: tuple, b: tuple) -> bool:
+    """True if two (x1, y1, x2, y2) rectangles intersect."""
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
+
+
 def draw_bounding_boxes(
     image: Union[np.ndarray, Image.Image],
     boxes: List[BoundingBox],
     show_labels: bool = True,
     show_conf: bool = True,
-    line_thickness: int = 3,
-    font_scale: float = 0.6
+    line_thickness: Optional[int] = None,
+    font_scale: Optional[float] = None
 ) -> np.ndarray:
-    """Draw bounding boxes with damage-class specific color coding onto image.
-    
+    """Draw thin, minimal bounding boxes with damage-class colour coding.
+
+    Line weight and font size scale with image resolution so annotations stay
+    unobtrusive on small frames instead of covering the defect they mark.
+
     Args:
         image: RGB or BGR numpy array or PIL Image
         boxes: List of BoundingBox objects
         show_labels: Whether to render class labels
         show_conf: Whether to render confidence score if available
-        line_thickness: Box outline thickness
-        font_scale: Font scale multiplier
-        
+        line_thickness: Box outline thickness (auto-scaled from image size if None)
+        font_scale: Font scale multiplier (auto-scaled from image size if None)
+
     Returns:
         Annotated image as RGB numpy array
     """
@@ -54,6 +62,18 @@ def draw_bounding_boxes(
     # Ensure working in RGB
     img_draw = img_np.copy()
     h, w = img_draw.shape[:2]
+    short_side = min(h, w)
+
+    # Thin outlines and small text, proportional to the frame.
+    if line_thickness is None:
+        line_thickness = int(np.clip(round(short_side / 480.0), 1, 2))
+    if font_scale is None:
+        font_scale = float(np.clip(short_side / 1500.0, 0.30, 0.44))
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text_thickness = 1
+    pad_x, pad_y = 3, 2
+    placed_labels: List[tuple] = []
 
     for box in boxes:
         cls_info = DAMAGE_CLASSES.get(box.name, {
@@ -69,36 +89,48 @@ def draw_bounding_boxes(
         xmax = max(0, min(box.xmax, w - 1))
         ymax = max(0, min(box.ymax, h - 1))
 
-        # Draw main rectangle
-        cv2.rectangle(img_draw, (xmin, ymin), (xmax, ymax), color, line_thickness)
+        cv2.rectangle(img_draw, (xmin, ymin), (xmax, ymax), color, line_thickness, cv2.LINE_AA)
 
-        if show_labels:
-            conf_str = f" {box.confidence * 100:.0f}%" if (show_conf and box.confidence is not None) else ""
-            label_text = f"{box.name}{conf_str}"
+        if not show_labels:
+            continue
 
-            # Calculate label text size
-            font = cv2.FONT_HERSHEY_DUPLEX
-            (text_w, text_h), baseline = cv2.getTextSize(label_text, font, font_scale, 1)
-            
-            # Label background box
-            label_ymin = max(0, ymin - text_h - baseline - 4)
-            label_ymax = ymin
-            label_xmax = min(w - 1, xmin + text_w + 6)
-            
-            cv2.rectangle(img_draw, (xmin, label_ymin), (label_xmax, label_ymax), color, -1)
-            
-            # Label text in contrasting white or black
-            text_color = (0, 0, 0) if (color[0]*0.299 + color[1]*0.587 + color[2]*0.114) > 160 else (255, 255, 255)
-            cv2.putText(
-                img_draw,
-                label_text,
-                (xmin + 3, label_ymax - baseline - 1),
-                font,
-                font_scale,
-                text_color,
-                1,
-                cv2.LINE_AA
-            )
+        conf_str = f" {box.confidence * 100:.0f}" if (show_conf and box.confidence is not None) else ""
+        label_text = f"{box.name}{conf_str}"
+
+        (text_w, text_h), baseline = cv2.getTextSize(label_text, font, font_scale, text_thickness)
+        box_w = text_w + pad_x * 2
+        box_h = text_h + baseline + pad_y
+
+        # Prefer directly above the box; drop just inside it when there is no
+        # headroom, then nudge to avoid stacking on an already-placed label.
+        lx = min(xmin, w - box_w - 1)
+        lx = max(0, lx)
+        candidates = [ymin - box_h, ymin + 1, ymax + 1, ymin - box_h * 2 - 1]
+        ly = candidates[0]
+        for cand in candidates:
+            if cand < 0 or cand + box_h > h:
+                continue
+            rect = (lx, cand, lx + box_w, cand + box_h)
+            if not any(_rects_overlap(rect, p) for p in placed_labels):
+                ly = cand
+                break
+        ly = int(np.clip(ly, 0, max(0, h - box_h)))
+        placed_labels.append((lx, ly, lx + box_w, ly + box_h))
+
+        cv2.rectangle(img_draw, (lx, ly), (lx + box_w, ly + box_h), color, -1)
+
+        # Label text in contrasting white or black
+        text_color = (0, 0, 0) if (color[0]*0.299 + color[1]*0.587 + color[2]*0.114) > 160 else (255, 255, 255)
+        cv2.putText(
+            img_draw,
+            label_text,
+            (lx + pad_x, ly + text_h + pad_y - 1),
+            font,
+            font_scale,
+            text_color,
+            text_thickness,
+            cv2.LINE_AA
+        )
 
     return img_draw
 

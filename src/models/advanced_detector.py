@@ -34,12 +34,18 @@ class AdvancedRoadDamageDetector:
             self.device = device
 
         self.yolo_models = []
-        
-        # Load available pretrained YOLO models
-        candidate_weights = [
-            MODELS_DIR / "keremberke_pothole_yolov8.pt",
-            MODELS_DIR / "pothole_yolov8.pt",
-        ]
+
+        # A fine-tuned checkpoint, when present, replaces the stock backbones:
+        # it was trained on this deployment's own road imagery, so mixing the
+        # weaker generic models back in would only dilute it.
+        finetuned = MODELS_DIR / "pothole_yolov8_finetuned.pt"
+        if finetuned.exists():
+            candidate_weights = [finetuned]
+        else:
+            candidate_weights = [
+                MODELS_DIR / "keremberke_pothole_yolov8.pt",
+                MODELS_DIR / "pothole_yolov8.pt",
+            ]
 
         from ultralytics import YOLO
         for w_path in candidate_weights:
@@ -47,72 +53,126 @@ class AdvancedRoadDamageDetector:
                 try:
                     m = YOLO(str(w_path))
                     self.yolo_models.append(m)
-                    print(f"Loaded Pretrained YOLO model: {w_path.name}")
+                    print(f"Loaded YOLO model: {w_path.name}")
                 except Exception as e:
                     print(f"Warning: Could not load {w_path}: {e}")
 
-    def extract_road_corridor_mask(self, img_rgb: np.ndarray) -> np.ndarray:
-        """Isolate asphalt/concrete roadway pavement from trees, foliage, grass, and sky.
-        Uses Excess Green Index (ExG = 2G - R - B) and convex exterior contour filling.
-        Returns a binary mask (255 = road, 0 = non-road background).
+    def semantic_masks(self, img_rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return boolean (vegetation, soil, sky) masks for a road scene.
+
+        Vegetation is keyed on green genuinely dominating BOTH other channels:
+        colour-cast asphalt can read as green-cyan (e.g. RGB 61/81/81, hue ~88)
+        and a hue band alone would wrongly reject the road surface. Live foliage
+        has green far above blue; grey pavement has g ~= b.
         """
         h, w = img_rgb.shape[:2]
-        
-        # 1. Excess Green Index (ExG): standard remote sensing index for vegetation
         r = img_rgb[:, :, 0].astype(np.float32)
         g = img_rgb[:, :, 1].astype(np.float32)
         b = img_rgb[:, :, 2].astype(np.float32)
-        
-        exg = 2.0 * g - r - b
-        
-        # HSV saturation check
+
         hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
-        sat = hsv[:, :, 1]
-        
-        # Vegetation: High ExG index or bright green/yellow hues with high saturation
-        is_vegetation = (exg > 20.0) | ((hsv[:, :, 0] >= 25) & (hsv[:, :, 0] <= 90) & (sat > 35))
-        
-        # Road binary candidate
-        road_binary = (~is_vegetation).astype(np.uint8) * 255
-        
-        # Clean small noise
-        kernel_clean = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-        road_binary = cv2.morphologyEx(road_binary, cv2.MORPH_OPEN, kernel_clean)
-        
-        # 2. Extract external road corridors and fill all interior road holes (potholes, asphalt patches)
-        cnts, _ = cv2.findContours(road_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        road_corridor = np.zeros((h, w), dtype=np.uint8)
-        
-        min_corridor_area = (h * w * 0.05)
-        for c in cnts:
-            if cv2.contourArea(c) > min_corridor_area:
-                cv2.drawContours(road_corridor, [c], -1, 255, thickness=-1)
+        hue, sat, val = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
 
-        # 3. Mask out bottom 7% to prevent watermarks ("shutterstock", timestamp bars)
-        road_corridor[int(h * 0.93):, :] = 0
-        road_corridor[:int(h * 0.02), :] = 0
+        exg = 2.0 * g - r - b
+        green_dominant = (g > b + 10) & (g > r + 4)
+        is_vegetation = green_dominant & ((exg > 20.0) | ((hue >= 25) & (hue <= 90) & (sat > 50)))
 
-        # Fallback if no prominent vegetation was found (e.g. pure dashcam asphalt frame)
-        if np.sum(road_corridor > 0) < (h * w * 0.10):
-            road_corridor = np.full((h, w), 255, dtype=np.uint8)
-            road_corridor[int(h * 0.93):, :] = 0
+        # Bare soil / dirt shoulders — warm orange-brown hue with real colour
+        # saturation. The brightness floor protects gravel-filled potholes,
+        # which are brown but sit in shadow inside the carriageway.
+        is_soil = (((hue <= 22) | (hue >= 170)) & (sat > 75) & (val > 95) & (r > g + 25) & (g >= b))
 
-        return road_corridor
+        # Sky — bright, blue-ish, and only ever in the upper part of frame.
+        upper = np.zeros((h, w), dtype=bool)
+        upper[: int(h * 0.55), :] = True
+        is_sky = upper & (val > 150) & (((hue >= 95) & (hue <= 135) & (sat > 25)) | (sat < 18) & (val > 205))
 
-    def detect_cv_pavement_defects(self, img_np: np.ndarray, road_mask: np.ndarray, min_conf: float = 0.25) -> List[BoundingBox]:
-        """Detect road defects strictly inside the verified road corridor."""
+        return is_vegetation, is_soil, is_sky
+
+    def extract_road_corridor_mask(self, img_rgb: np.ndarray) -> np.ndarray:
+        """Isolate asphalt/concrete pavement from vegetation, bare soil, and sky.
+
+        Works at pixel level (vegetation + soil + sky rejection) rather than
+        contour extraction. The previous contour approach collapsed to a
+        whole-frame fallback on almost every real photo, which disabled masking
+        entirely and let defects be reported on grass and dirt shoulders.
+
+        Returns a binary mask (255 = road surface, 0 = non-road background).
+        """
+        h, w = img_rgb.shape[:2]
+        is_vegetation, is_soil, is_sky = self.semantic_masks(img_rgb)
+        road = ~(is_vegetation | is_soil | is_sky)
+        road_binary = road.astype(np.uint8) * 255
+
+        # Clean speckle, then close gaps so potholes/patches inside the
+        # carriageway stay part of the road region.
+        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
+        road_binary = cv2.morphologyEx(road_binary, cv2.MORPH_OPEN, k_open)
+        road_binary = cv2.morphologyEx(road_binary, cv2.MORPH_CLOSE, k_close)
+
+        # Keep only substantial road regions; fill their interior holes so a
+        # dark pothole is never excluded from the surface that contains it.
+        num, labels, stats, _ = cv2.connectedComponentsWithStats(road_binary, connectivity=8)
+        corridor = np.zeros((h, w), dtype=np.uint8)
+        min_region = h * w * 0.015
+        for i in range(1, num):
+            if stats[i, cv2.CC_STAT_AREA] >= min_region:
+                corridor[labels == i] = 255
+
+        if np.count_nonzero(corridor) > 0:
+            filled = corridor.copy()
+            cnts, _ = cv2.findContours(filled, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(filled, cnts, -1, 255, thickness=-1)
+            corridor = filled
+        else:
+            # Nothing survived the size filter: fall back to the cleaned pixel
+            # mask, NOT to the whole frame, so vegetation stays excluded.
+            corridor = road_binary
+
+        # Strip watermark/timestamp bands at the extreme top and bottom.
+        corridor[int(h * 0.96):, :] = 0
+        corridor[: int(h * 0.02), :] = 0
+
+        return corridor
+
+    # Evidence thresholds for the classical detector. Shadows and tar seams are
+    # dark but smooth; real pavement damage is dark AND rough, so texture is the
+    # discriminator that keeps clean roads clean.
+    MIN_CONTRAST = 0.14
+    MIN_TEXTURE = 26.0
+    MIN_ROAD_OVERLAP = 0.75
+    MAX_VEGETATION_FRACTION = 0.12
+    CV_CONF_CEILING = 0.55
+
+    def detect_cv_pavement_defects(
+        self,
+        img_np: np.ndarray,
+        road_mask: np.ndarray,
+        min_conf: float = 0.25,
+        veg_mask: Optional[np.ndarray] = None
+    ) -> List[BoundingBox]:
+        """Detect road defects strictly inside the verified road corridor.
+
+        Every candidate must clear three independent checks — it must sit on
+        the road, be meaningfully darker than the surrounding surface, and be
+        texturally rough. Confidence is deliberately capped below the neural
+        detector so YOLO wins whenever both fire on the same defect.
+        """
         h, w = img_np.shape[:2]
         gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-        boxes: List[BoundingBox] = []
 
         # Multi-scale anomaly kernels
         scales = [
-            (max(21, int(min(h, w) * 0.08) | 1), 10),
-            (max(41, int(min(h, w) * 0.16) | 1), 14),
-            (max(65, int(min(h, w) * 0.24) | 1), 18),
+            (max(21, int(min(h, w) * 0.08) | 1), 14),
+            (max(41, int(min(h, w) * 0.16) | 1), 18),
+            (max(65, int(min(h, w) * 0.24) | 1), 22),
         ]
 
         raw_candidates = []
+        road_bool = road_mask > 0
+        if veg_mask is None:
+            veg_mask, _, _ = self.semantic_masks(img_np)
 
         for k_size, diff_thresh in scales:
             blur = cv2.GaussianBlur(gray, (k_size, k_size), 0)
@@ -120,13 +180,13 @@ class AdvancedRoadDamageDetector:
             diff = cv2.bitwise_and(diff, diff, mask=road_mask)
 
             _, th = cv2.threshold(diff, diff_thresh, 255, cv2.THRESH_BINARY)
-            
+
             # Morphological smoothing to combine cavity fragments
             morph_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
             th_closed = cv2.morphologyEx(th, cv2.MORPH_CLOSE, morph_k)
 
             cnts, _ = cv2.findContours(th_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            min_area = (h * w) * 0.0003
+            min_area = (h * w) * 0.0008
             max_area = (h * w) * 0.15
 
             for c in cnts:
@@ -137,8 +197,20 @@ class AdvancedRoadDamageDetector:
                 x, y, bw, bh = cv2.boundingRect(c)
                 cx, cy = x + bw // 2, y + bh // 2
 
-                # STRICT CHECK: Center and majority must lie on verified road
-                if road_mask[cy, cx] == 0:
+                if not road_bool[cy, cx]:
+                    continue
+
+                # The bulk of the blob (not just its centre) must be on road,
+                # so defects straddling a grass or soil verge are rejected.
+                region = road_bool[y:y + bh, x:x + bw]
+                if region.size == 0 or (np.count_nonzero(region) / region.size) < self.MIN_ROAD_OVERLAP:
+                    continue
+
+                # Foliage is dark and rough enough to pass the contrast and
+                # texture gates, so reject candidates holding real vegetation
+                # even when the surrounding region is nominally road.
+                veg_region = veg_mask[y:y + bh, x:x + bw]
+                if veg_region.size and (np.count_nonzero(veg_region) / veg_region.size) > self.MAX_VEGETATION_FRACTION:
                     continue
 
                 # Exclude long thin road lane markings
@@ -153,30 +225,41 @@ class AdvancedRoadDamageDetector:
                 pad = 12
                 x1, y1 = max(0, x - pad), max(0, y - pad)
                 x2, y2 = min(w, x + bw + pad), min(h, y + bh + pad)
-                
+
                 local_bg = gray[y1:y2, x1:x2]
                 defect_patch = gray[y:y+bh, x:x+bw]
-                
-                mean_bg = np.mean(local_bg)
-                mean_defect = np.mean(defect_patch)
+
+                if defect_patch.size == 0 or local_bg.size == 0:
+                    continue
+
+                mean_bg = float(np.mean(local_bg))
+                mean_defect = float(np.mean(defect_patch))
                 contrast = (mean_bg - mean_defect) / max(1.0, mean_bg)
 
-                if contrast < 0.05:
+                if contrast < self.MIN_CONTRAST:
+                    continue
+
+                # Roughness: smooth dark regions are shadows, wet sheen or tar
+                # repair seams, not broken pavement.
+                texture = float(cv2.Laplacian(defect_patch, cv2.CV_32F).var())
+                if texture < self.MIN_TEXTURE:
                     continue
 
                 # Geometric classification
                 if solidity > 0.35 and (0.35 <= aspect_ratio <= 2.8):
                     cls_name = "D40"  # Pothole
-                    conf = min(0.96, max(0.65, 0.72 + contrast * 0.6))
+                    conf = 0.40 + contrast * 0.5
                 elif aspect_ratio < 0.35:
                     cls_name = "D00"  # Longitudinal Crack
-                    conf = min(0.92, max(0.60, 0.65 + contrast * 0.5))
+                    conf = 0.34 + contrast * 0.4
                 elif aspect_ratio > 2.8:
                     cls_name = "D10"  # Transverse Crack
-                    conf = min(0.92, max(0.60, 0.65 + contrast * 0.5))
+                    conf = 0.34 + contrast * 0.4
                 else:
                     cls_name = "D20"  # Alligator Crack
-                    conf = min(0.90, max(0.55, 0.60 + contrast * 0.5))
+                    conf = 0.32 + contrast * 0.4
+
+                conf = float(min(self.CV_CONF_CEILING, conf))
 
                 raw_candidates.append(BoundingBox(
                     name=cls_name,
@@ -190,8 +273,19 @@ class AdvancedRoadDamageDetector:
         merged = self.apply_nms(raw_candidates, iou_thresh=0.30)
         return [b for b in merged if (b.confidence or 0) >= min_conf]
 
-    def apply_nms(self, boxes: List[BoundingBox], iou_thresh: float = 0.35) -> List[BoundingBox]:
-        """Non-Maximum Suppression to eliminate overlapping duplicates."""
+    def apply_nms(
+        self,
+        boxes: List[BoundingBox],
+        iou_thresh: float = 0.35,
+        containment_thresh: float = 0.70
+    ) -> List[BoundingBox]:
+        """Non-Maximum Suppression to eliminate overlapping duplicates.
+
+        Also suppresses boxes that are largely *contained* by a stronger box
+        even when their IoU is low — two detectors marking the same pothole at
+        different scales previously survived plain IoU NMS and rendered as
+        stacked duplicate labels.
+        """
         if not boxes:
             return []
 
@@ -212,8 +306,9 @@ class AdvancedRoadDamageDetector:
                 inter = max(0, x2 - x1) * max(0, y2 - y1)
                 union = current.area + b.area - inter
                 iou = inter / max(1e-6, union)
+                containment = inter / max(1e-6, float(b.area))
 
-                if iou < iou_thresh:
+                if iou < iou_thresh and containment < containment_thresh:
                     remaining.append(b)
 
             sorted_boxes = remaining
@@ -304,10 +399,28 @@ class AdvancedRoadDamageDetector:
                 except Exception as e:
                     print(f"YOLO inference notice: {e}")
 
+        # Deduplicate across the two YOLO backbones before the classical pass,
+        # so a defect both models found is a single box, not a stack.
+        all_boxes = self.apply_nms(all_boxes, iou_thresh=0.30)
+        yolo_boxes = list(all_boxes)
+
         # 3. Run Computer Vision Pavement Defect Analysis
         if "Computer Vision" in engine_mode or "Ensemble" in engine_mode or len(all_boxes) == 0:
             cv_boxes = self.detect_cv_pavement_defects(img_np, road_mask, min_conf=conf_thresh)
-            all_boxes.extend(cv_boxes)
+
+            # The neural detector is the authority on anything it already found.
+            # Classical candidates only contribute where YOLO stayed silent.
+            for cb in cv_boxes:
+                overlaps_yolo = False
+                for yb in yolo_boxes:
+                    ix = max(0, min(cb.xmax, yb.xmax) - max(cb.xmin, yb.xmin))
+                    iy = max(0, min(cb.ymax, yb.ymax) - max(cb.ymin, yb.ymin))
+                    inter = ix * iy
+                    if inter / max(1e-6, float(min(cb.area, yb.area))) > 0.25:
+                        overlaps_yolo = True
+                        break
+                if not overlaps_yolo:
+                    all_boxes.append(cb)
 
         # Merge boxes with NMS
         final_boxes = self.apply_nms(all_boxes, iou_thresh=0.30)

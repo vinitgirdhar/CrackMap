@@ -368,7 +368,15 @@ def get_dataset_stats():
 @app.get("/api/system-info")
 def get_system_info():
     """Return real backend/runtime info (used to back live UI badges, not marketing text)."""
-    weight_files = sorted(
+    # Report the weights actually driving inference, not every file on disk —
+    # the detector loads a fine-tuned checkpoint in preference to the stock
+    # backbones, so listing the directory would misstate what is running.
+    loaded = []
+    for model in detector.yolo_models:
+        ckpt = getattr(model, "ckpt_path", None) or getattr(model, "model_name", None)
+        loaded.append(Path(str(ckpt)).name if ckpt else "unknown")
+
+    available = sorted(
         p.name for p in MODELS_DIR.glob("*") if p.suffix in (".pt", ".pth")
     )
     return {
@@ -376,7 +384,9 @@ def get_system_info():
         "torch_version": torch.__version__,
         "cuda_available": torch.cuda.is_available(),
         "device": detector.device,
-        "models_loaded": weight_files,
+        "models_loaded": loaded,
+        "models_available": available,
+        "fine_tuned": any("finetuned" in name for name in loaded),
     }
 
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Route, RefreshCw, Search } from "lucide-react";
+import { useState } from "react";
+import { Route, RefreshCw, Check } from "lucide-react";
 import type { SystemInfo, TabKey } from "@/lib/types";
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -18,6 +19,24 @@ interface TopNavBarProps {
 }
 
 export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: TopNavBarProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [justRefreshed, setJustRefreshed] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      onRefresh();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("crackmap:refresh"));
+      }
+      setJustRefreshed(true);
+      setTimeout(() => setJustRefreshed(false), 2000);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
+
   return (
     <div className="top-nav-bar">
       <div className="brand-group">
@@ -34,6 +53,9 @@ export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: Top
             <span className="brand-badge">PyTorch {systemInfo.torch_version}</span>
             <span className="brand-badge">
               {systemInfo.device === "cuda" ? "GPU Accelerated" : "CPU Inference"}
+            </span>
+            <span className="brand-badge" title={systemInfo.models_loaded.join(", ")}>
+              {systemInfo.fine_tuned ? "Fine-Tuned Model" : "Pretrained Model"}
             </span>
           </div>
         )}
@@ -54,18 +76,20 @@ export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: Top
       </div>
 
       <div className="nav-actions">
-        <button className="action-circle-btn" title="Refresh live data" onClick={onRefresh} type="button">
-          <RefreshCw size={16} />
+        <button
+          className={`action-circle-btn refresh-btn${isRefreshing ? " is-refreshing" : ""}${justRefreshed ? " just-refreshed" : ""}`}
+          title={justRefreshed ? "Telemetry & metrics refreshed!" : "Refresh all live data"}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          type="button"
+          aria-label="Refresh live data"
+        >
+          {justRefreshed ? (
+            <Check size={16} className="text-green-500" style={{ color: "#16a34a" }} />
+          ) : (
+            <RefreshCw size={16} className={isRefreshing ? "spin-animation" : ""} />
+          )}
         </button>
-        <button className="action-circle-btn" title="Search" type="button">
-          <Search size={16} />
-        </button>
-        <button className="action-circle-btn" title="Alerts" type="button">
-          <Bell size={16} />
-        </button>
-        <div className="user-avatar-badge" title="AI Inspection Officer">
-          AI
-        </div>
       </div>
     </div>
   );

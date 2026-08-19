@@ -20,6 +20,8 @@ export interface SystemInfo {
   cuda_available: boolean;
   device: string;
   models_loaded: string[];
+  models_available?: string[];
+  fine_tuned?: boolean;
 }
 
 export interface SamplesList {

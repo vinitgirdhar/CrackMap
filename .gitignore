@@ -76,3 +76,16 @@ next-env.d.ts
 *~
 .DS_Store
 Thumbs.db
+
+# Datasets — training images/labels are large, keep them out of git
+data/
+runs/
+
+# Training outputs (regenerable, ~73MB each).
+# The pretrained YOLO .pt weights stay tracked: the app cannot run without them.
+models_saved/*.pth
+models_saved/pothole_yolov8_finetuned.pt
+*.onnx
+
+# Stock checkpoints Ultralytics auto-downloads into the working directory
+/yolo*.pt

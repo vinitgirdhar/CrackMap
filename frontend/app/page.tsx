@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 import { TopNavBar } from "@/components/TopNavBar";
 import { HeroSection } from "@/components/HeroSection";
 import { StepperPipeline } from "@/components/StepperPipeline";
+
 import { SubNavRow } from "@/components/SubNavRow";
-import { DarkFeatureCard } from "@/components/DarkFeatureCard";
-import { QuadrantGrid } from "@/components/QuadrantGrid";
 import { DetectorView } from "@/components/DetectorView";
 import { GisView } from "@/components/GisView";
 import { AnalyticsView } from "@/components/AnalyticsView";
@@ -44,10 +43,6 @@ export default function Home() {
 
       <SubNavRow activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <div className="dashboard-grid">
-        <DarkFeatureCard summary={summary} lastRefreshed={lastUpdated} onExpand={() => setActiveTab("detect")} />
-        <QuadrantGrid summary={summary} municipalityCount={municipalityCount} />
-      </div>
 
       <div className="workspace-container" style={{ display: activeTab === "detect" ? "block" : "none" }}>
         <DetectorView />

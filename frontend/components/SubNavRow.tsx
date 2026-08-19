@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Settings2, SlidersHorizontal } from "lucide-react";
 import type { TabKey } from "@/lib/types";
+import { FilterControlsPopover } from "./FilterControlsPopover";
+import { SettingsModal } from "./SettingsModal";
 
 const SUB_TABS: { key: TabKey; label: string }[] = [
   { key: "detect", label: "Details & AI Studio" },
@@ -16,28 +19,55 @@ interface SubNavRowProps {
 }
 
 export function SubNavRow({ activeTab, onTabChange }: SubNavRowProps) {
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   return (
-    <div className="sub-nav-row">
-      <div className="sub-filter-pills">
-        {SUB_TABS.map((tab) => (
+    <>
+      <div className="sub-nav-row">
+        <div className="sub-filter-pills">
+          {SUB_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`sub-pill${activeTab === tab.key ? " active" : ""}`}
+              onClick={() => onTabChange(tab.key)}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="sub-tools-group">
           <button
-            key={tab.key}
-            className={`sub-pill${activeTab === tab.key ? " active" : ""}`}
-            onClick={() => onTabChange(tab.key)}
+            className={`action-circle-btn${isFilterOpen ? " is-active" : ""}`}
+            title="Inspection & filter controls"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
             type="button"
+            aria-label="Inspection and filter controls"
           >
-            {tab.label}
+            <SlidersHorizontal size={16} />
           </button>
-        ))}
+          <button
+            className={`action-circle-btn${isSettingsOpen ? " is-active" : ""}`}
+            title="System preferences & settings"
+            onClick={() => setIsSettingsOpen(true)}
+            type="button"
+            aria-label="System settings"
+          >
+            <Settings2 size={16} />
+          </button>
+        </div>
       </div>
-      <div className="sub-tools-group">
-        <button className="action-circle-btn" title="Sort & filter" type="button">
-          <SlidersHorizontal size={16} />
-        </button>
-        <button className="action-circle-btn" title="Settings" type="button">
-          <Settings2 size={16} />
-        </button>
-      </div>
-    </div>
+
+      <FilterControlsPopover
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+    </>
   );
 }

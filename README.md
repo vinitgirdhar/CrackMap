@@ -130,15 +130,6 @@ CrackMap supports standard municipal and academic damage classes based on the Gl
 | `D43` | **Crosswalk Marking Blur** | Worn and faded pedestrian crosswalk paint | Medium |
 | `D44` | **Lane Marking Blur** | Worn and faded lane and boundary road markings | Medium |
 
----
-
-## 🌍 Global Benchmark & Multi-Country Datasets
-
-CrackMap builds upon international research benchmarks including the **CRDDC'2022**, **GRDDC'2020**, and **RDD2020** datasets spanning 6+ countries (Japan, India, Czech Republic, Norway, United States, China).
-
-<div align="center">
-  <img src="./images/GRDD2020.png" alt="Global Road Damage Detection Challenge Map" width="85%" style="border-radius: 8px;"/>
-</div>
 
 ---
 
