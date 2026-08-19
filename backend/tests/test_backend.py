@@ -45,8 +45,14 @@ def test_dashboard_summary():
     res = client.get("/api/dashboard-summary")
     assert res.status_code == 200
     data = res.json()
-    assert data["total_images"] > 0
+    assert data["total_images"] == 665
+    assert data["total_defects"] == 1739
     assert "class_distribution" in data
+    assert "pothole" in data["class_distribution"]
+    assert "Roboflow" not in data["dataset_name"]
+    assert "chitholian/annotated-potholes-dataset" in data["dataset_name"]
+    assert "surveyed_area_m2" not in data
+    assert "verified_pavement_m2" not in data
 
 def test_gis_data():
     res = client.get("/api/gis-data")

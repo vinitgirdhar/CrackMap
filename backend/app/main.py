@@ -185,7 +185,7 @@ async def detect_damage(
 @app.get("/api/dashboard-summary", response_model=DashboardSummaryResponse, tags=["Analytics"])
 async def get_dashboard_summary():
     return DashboardSummaryResponse(
-        dataset_name="Annotated Potholes Benchmark (Roboflow/Kaggle)",
+        dataset_name="Kaggle: chitholian/annotated-potholes-dataset",
         total_images=665,
         damaged_images=665,
         undamaged_images=0,
@@ -195,8 +195,6 @@ async def get_dashboard_summary():
         other_count=0,
         avg_severity=2.62,
         composite_damage_score=82.0,
-        surveyed_area_m2=665,
-        verified_pavement_m2=665,
         class_distribution={
             "pothole": 1739,
         },

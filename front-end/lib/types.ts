@@ -9,8 +9,6 @@ export interface DashboardSummary {
   other_count: number;
   avg_severity: number;
   composite_damage_score: number;
-  surveyed_area_m2: number;
-  verified_pavement_m2: number;
   class_distribution: Record<string, number>;
   is_demo_data?: boolean;
 }

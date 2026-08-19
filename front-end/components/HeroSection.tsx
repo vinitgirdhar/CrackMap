@@ -20,22 +20,22 @@ export function HeroSection({ summary }: HeroSectionProps) {
   return (
     <div className="hero-section">
       <div className="hero-title-group">
-        <span className="hero-sub">Road Health Intelligence</span>
+        <span className="hero-sub">Single-Class Pothole Detector</span>
         <h1 className="hero-main">Pavement Inspection AI</h1>
       </div>
       <div className="hero-metrics-row">
         <Metric
-          label="Surveyed Area"
-          value={summary ? summary.surveyed_area_m2.toLocaleString() : "--"}
-          unit="m²"
+          label="Training Corpus"
+          value={summary ? summary.total_images.toLocaleString() : "665"}
+          unit="imgs"
         />
         <Metric
-          label="Verified Pavement"
-          value={summary ? summary.verified_pavement_m2.toLocaleString() : "--"}
-          unit="m²"
+          label="Dataset Potholes"
+          value={summary ? summary.total_defects.toLocaleString() : "1,739"}
+          unit="boxes"
         />
-        <Metric label="Active Hazards" value={summary ? String(summary.total_defects) : "--"} unit="pts" />
-        <Metric label="Survey Frames" value={summary ? String(summary.total_images) : "--"} unit="imgs" />
+        <Metric label="Model Backbone" value="YOLOv8s" unit="v8" />
+        <Metric label="Target Classes" value="1" unit="pothole" />
       </div>
     </div>
   );

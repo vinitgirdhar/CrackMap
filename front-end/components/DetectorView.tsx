@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Target, Upload } from "lucide-react";
+import { Camera, Target, Upload, Info, ChevronDown, ChevronUp, Calculator } from "lucide-react";
 import { detectFromFile, detectFromSample, getSamples } from "@/lib/api";
 import type { DetectionResult } from "@/lib/types";
 
@@ -13,6 +13,7 @@ export function DetectorView() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMethodologyOpen, setIsMethodologyOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -47,6 +48,10 @@ export function DetectorView() {
     e.target.value = "";
   }
 
+  const defectLabel = result
+    ? `${result.total_defects} ${result.total_defects === 1 ? "defect" : "defects"}`
+    : "";
+
   return (
     <div>
       <div className="workspace-header">
@@ -56,8 +61,7 @@ export function DetectorView() {
             AI Road Damage Inspection Studio
           </h3>
           <p className="section-subtext" style={{ marginBottom: 0 }}>
-            Upload road photos (aerial, drone, dashcam, or smartphone). The AI isolates asphalt and flags
-            potholes and cracks.
+            Upload road photos (aerial, drone, dashcam, or smartphone). The YOLOv8 detector localizes asphalt surface potholes.
           </p>
         </div>
         <div className="workspace-header-actions">
@@ -83,7 +87,7 @@ export function DetectorView() {
         </div>
         <div className="dropzone-text">Click to Upload Road Image to Inspect</div>
         <div className="dropzone-hint">
-          Supports JPG, PNG, WEBP · Automatic road surface masking (0% tree false positives)
+          Supports JPG, PNG, WEBP · YOLOv8 single-class pothole detector
         </div>
         <input
           ref={fileInputRef}
@@ -113,13 +117,13 @@ export function DetectorView() {
             <div className="image-card-header">
               <h4>
                 <Target size={16} />
-                Detected Road Defects (Asphalt Corridor)
+                Detected Road Defects (YOLOv8)
               </h4>
               <span className="latency-badge">
                 {isAnalyzing
                   ? "Analyzing..."
                   : result
-                    ? `${result.inference_time_ms} ms · ${result.total_defects} defects`
+                    ? `${result.inference_time_ms} ms · ${defectLabel} · Damage Score: ${result.composite_damage_score}/100`
                     : "-- ms"}
               </span>
             </div>
@@ -169,7 +173,7 @@ export function DetectorView() {
                     <td>
                       <span
                         style={{
-                          color: b.severity === "Critical" ? "#ef4444" : "#f59e0b",
+                          color: b.severity === "Severe" || b.severity === "Critical" ? "#ef4444" : b.severity === "Moderate" ? "#f59e0b" : "#16a34a",
                           fontWeight: 700,
                         }}
                       >
@@ -188,6 +192,48 @@ export function DetectorView() {
           </div>
         </div>
       )}
+
+      {/* Transparent Scoring & Severity Methodology Panel */}
+      <div className="methodology-card" style={{ marginTop: 24, padding: "16px 20px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12 }}>
+        <button
+          type="button"
+          onClick={() => setIsMethodologyOpen(!isMethodologyOpen)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
+          aria-expanded={isMethodologyOpen}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "#1e293b", fontSize: "0.95rem" }}>
+            <Calculator size={18} style={{ color: "#3b82f6" }} />
+            <span>How Damage Scores and Severity Bands Are Calculated</span>
+          </div>
+          {isMethodologyOpen ? <ChevronUp size={18} style={{ color: "#64748b" }} /> : <ChevronDown size={18} style={{ color: "#64748b" }} />}
+        </button>
+
+        {isMethodologyOpen && (
+          <div style={{ marginTop: 14, fontSize: "0.875rem", color: "#334155", lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 12 }}>
+              <strong style={{ color: "#0f172a" }}>1. Severity Band Thresholds (Frame Coverage):</strong>
+              <ul style={{ margin: "6px 0 6px 20px", padding: 0 }}>
+                <li><strong style={{ color: "#16a34a" }}>Low:</strong> Bounding box covers under 1.0% of the image frame (score weight = 1.5).</li>
+                <li><strong style={{ color: "#f59e0b" }}>Moderate:</strong> Bounding box covers 1.0% to 4.0% of the image frame (score weight = 3.0).</li>
+                <li><strong style={{ color: "#ef4444" }}>Severe:</strong> Bounding box covers over 4.0% of the image frame (score weight = 5.0).</li>
+              </ul>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+                <em>Note: Frame coverage is a 2D image proxy for apparent defect size in the photograph. It is not a measurement of real-world depth or physical metric dimensions, which vary with camera distance, sensor resolution, and viewing angle.</em>
+              </p>
+            </div>
+
+            <div>
+              <strong style={{ color: "#0f172a" }}>2. Composite Damage Score Formula:</strong>
+              <div style={{ margin: "6px 0", padding: "8px 12px", background: "#f1f5f9", borderRadius: 6, fontFamily: "monospace", fontSize: "0.85rem", color: "#0f172a" }}>
+                composite_damage_score = max(15, 100 − (total_defects × 12) − (average_severity_score × 3.5))
+              </div>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+                <em>Disclaimer: This formula is a custom heuristic designed specifically for this pothole detection pipeline, where 100 represents an anomaly-free frame. It is not the ASTM D6433 Pavement Condition Index standard.</em>
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

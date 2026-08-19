@@ -26,7 +26,7 @@ export function AnalyticsView({ isActive }: AnalyticsViewProps) {
         Road Damage Dataset & Model Benchmark Analytics
       </h3>
       <p className="section-subtext">
-        Ground-truth training annotations, class distribution, and detection benchmark metrics for the single-class YOLOv8 pothole model.
+        Ground-truth training annotations and benchmark metrics for the single-class YOLOv8 pothole model from Kaggle: <code>chitholian/annotated-potholes-dataset</code>.
       </p>
 
       {!stats && <p>Loading live dataset statistics...</p>}

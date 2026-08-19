@@ -57,7 +57,7 @@ class DetectionResultResponse(BaseModel):
     results: Optional[List[CompanionImageResult]] = None
 
 class DashboardSummaryResponse(BaseModel):
-    dataset_name: str = "Annotated Potholes Benchmark (Roboflow/Kaggle)"
+    dataset_name: str = "Kaggle: chitholian/annotated-potholes-dataset"
     total_images: int = 665
     damaged_images: int = 665
     undamaged_images: int = 0
@@ -67,8 +67,6 @@ class DashboardSummaryResponse(BaseModel):
     other_count: int = 0
     avg_severity: float = 2.62
     composite_damage_score: float = 82.0
-    surveyed_area_m2: int = 665
-    verified_pavement_m2: int = 665
     class_distribution: Dict[str, int] = {
         "pothole": 1739,
     }
