@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { X, RotateCcw, Check, Sliders } from "lucide-react";
+import { X, RotateCcw, Check, Sliders, Target, Layers } from "lucide-react";
 
 interface FilterState {
   confidenceThreshold: number;
@@ -66,10 +66,17 @@ export function FilterControlsPopover({ isOpen, onClose }: FilterControlsPopover
         onClose();
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
     }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   const handleConfidenceChange = (val: number) => {
@@ -157,7 +164,10 @@ export function FilterControlsPopover({ isOpen, onClose }: FilterControlsPopover
           {/* Confidence Slider */}
           <div className="filter-group">
             <div className="filter-label-row">
-              <label htmlFor="conf-slider">Confidence Threshold</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Target size={16} style={{ color: "#3b82f6" }} />
+                <label htmlFor="conf-slider" style={{ fontWeight: 700, color: "#1e293b" }}>Confidence Threshold</label>
+              </div>
               <span className="filter-value-badge">{filters.confidenceThreshold}%</span>
             </div>
             <input
@@ -170,13 +180,16 @@ export function FilterControlsPopover({ isOpen, onClose }: FilterControlsPopover
               onChange={(e) => handleConfidenceChange(Number(e.target.value))}
               className="styled-slider"
             />
-            <span className="filter-hint">Minimum model detection confidence cutoff</span>
+            <span className="filter-hint">Minimum AI model detection certainty required to register a pothole.</span>
           </div>
 
           {/* NMS IoU Slider */}
           <div className="filter-group">
             <div className="filter-label-row">
-              <label htmlFor="iou-slider">NMS IoU Threshold</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Layers size={16} style={{ color: "#8b5cf6" }} />
+                <label htmlFor="iou-slider" style={{ fontWeight: 700, color: "#1e293b" }}>NMS IoU Overlap Threshold</label>
+              </div>
               <span className="filter-value-badge">{filters.iouThreshold}%</span>
             </div>
             <input
@@ -189,7 +202,7 @@ export function FilterControlsPopover({ isOpen, onClose }: FilterControlsPopover
               onChange={(e) => handleIouChange(Number(e.target.value))}
               className="styled-slider"
             />
-            <span className="filter-hint">Bounding box non-maximum suppression overlap</span>
+            <span className="filter-hint">Non-Maximum Suppression: Merges overlapping duplicate boxes on the same defect.</span>
           </div>
 
           {/* Damage Type Filter Chips */}

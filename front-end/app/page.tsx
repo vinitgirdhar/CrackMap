@@ -17,15 +17,27 @@ export default function Home() {
 
   const { data: summary, refetch } = useDashboardSummary();
 
-  useEffect(() => {
+  const fetchSystemData = () => {
     getSystemInfo()
       .then(setSystemInfo)
       .catch(() => setSystemInfo(null));
+  };
+
+  useEffect(() => {
+    fetchSystemData();
   }, []);
+
+  const handleGlobalRefresh = () => {
+    refetch();
+    fetchSystemData();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crackmap:refresh"));
+    }
+  };
 
   return (
     <div className="dashboard-wrapper">
-      <TopNavBar activeTab={activeTab} onTabChange={setActiveTab} systemInfo={systemInfo} onRefresh={refetch} />
+      <TopNavBar activeTab={activeTab} onTabChange={setActiveTab} systemInfo={systemInfo} onRefresh={handleGlobalRefresh} />
 
       <HeroSection summary={summary} />
 

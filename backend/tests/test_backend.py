@@ -28,7 +28,10 @@ def test_samples():
     assert len(data["samples"]) > 0
 
 def test_detect_from_sample():
-    res = client.post("/api/detect", data={"sample_name": "sample_01.jpg", "conf_threshold": "0.35"})
+    samples_res = client.get("/api/samples")
+    assert samples_res.status_code == 200
+    sample_name = samples_res.json()["samples"][0]
+    res = client.post("/api/detect", data={"sample_name": sample_name, "conf_threshold": "0.35"})
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True

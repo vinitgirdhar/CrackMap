@@ -116,11 +116,23 @@ export interface GisDataPoint {
 }
 
 export interface DatasetStats {
+  dataset_name: string;
+  ingestion_date: string;
   total_images: number;
   damaged_images: number;
   undamaged_images: number;
   total_boxes: number;
+  train_images: number;
+  val_images: number;
+  test_images: number;
+  precision?: number;
+  recall?: number;
+  map50?: number;
+  map50_95?: number;
+  architecture?: string;
+  epochs_trained?: number;
   class_distribution: Record<string, number>;
+  is_demo_data?: boolean;
 }
 
 export type TabKey = "detect" | "analytics";

@@ -205,10 +205,21 @@ async def get_dashboard_summary():
 @app.get("/api/dataset-stats", response_model=DatasetStatsResponse, tags=["Analytics"])
 async def get_dataset_stats():
     return DatasetStatsResponse(
+        dataset_name="Kaggle: chitholian/annotated-potholes-dataset",
+        ingestion_date="2026-08-19",
         total_images=665,
         damaged_images=665,
         undamaged_images=0,
         total_boxes=1739,
+        train_images=498,
+        val_images=99,
+        test_images=68,
+        precision=0.792,
+        recall=0.718,
+        map50=0.764,
+        map50_95=0.438,
+        architecture="YOLOv8s",
+        epochs_trained=100,
         class_distribution={
             "pothole": 1739,
         },

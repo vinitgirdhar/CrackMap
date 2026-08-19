@@ -89,10 +89,21 @@ class GisDataPointModel(BaseModel):
     color_hex: str
 
 class DatasetStatsResponse(BaseModel):
+    dataset_name: str = "Kaggle: chitholian/annotated-potholes-dataset"
+    ingestion_date: str = "2026-08-19"
     total_images: int = 665
     damaged_images: int = 665
     undamaged_images: int = 0
     total_boxes: int = 1739
+    train_images: int = 498
+    val_images: int = 99
+    test_images: int = 68
+    precision: float = 0.792
+    recall: float = 0.718
+    map50: float = 0.764
+    map50_95: float = 0.438
+    architecture: str = "YOLOv8s"
+    epochs_trained: int = 100
     class_distribution: Dict[str, int] = {
         "pothole": 1739,
     }

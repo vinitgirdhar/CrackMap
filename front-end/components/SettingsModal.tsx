@@ -1,20 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { X, Settings2, Activity, Check, RefreshCw, Volume2, Globe, Server } from "lucide-react";
-import { getSystemInfo } from "@/lib/api";
+import { X, Settings2, RefreshCw, Volume2, Eye } from "lucide-react";
 
 interface SettingsState {
-  apiUrl: string;
-  mapTileLayer: "carto-light" | "carto-dark" | "osm";
   autoRefreshInterval: number; // in seconds (0 = off)
   enableAudioAlerts: boolean;
   highContrastBoxes: boolean;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
-  apiUrl: "http://localhost:8000",
-  mapTileLayer: "carto-light",
   autoRefreshInterval: 0,
   enableAudioAlerts: false,
   highContrastBoxes: true,
@@ -27,8 +22,6 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
-  const [pingStatus, setPingStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
-  const [pingLatency, setPingLatency] = useState<number | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -37,10 +30,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       try {
         const saved = localStorage.getItem("crackmap_system_settings");
         if (saved) {
-          // Persisted state must be read after mount, not in a lazy state
-          // initialiser: localStorage does not exist during SSR and seeding
-          // from it at render time would cause a hydration mismatch.
-          // eslint-disable-next-line react-hooks/set-state-in-effect
           setSettings(JSON.parse(saved));
         }
       } catch {
@@ -58,20 +47,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
-
-  const handleTestConnection = async () => {
-    setPingStatus("testing");
-    const start = performance.now();
-    try {
-      await getSystemInfo();
-      const latency = Math.round(performance.now() - start);
-      setPingLatency(latency);
-      setPingStatus("success");
-    } catch {
-      setPingStatus("error");
-      setPingLatency(null);
-    }
-  };
 
   const handleSave = () => {
     if (typeof window !== "undefined") {
@@ -98,8 +73,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <Settings2 size={20} />
             </div>
             <div>
-              <h3>System Settings & Preferences</h3>
-              <p>Configure API endpoints, telemetry polling, and inspection overlays</p>
+              <h3>Display & Telemetry Preferences</h3>
+              <p>Configure telemetry auto-refresh, audio cues, and visual overlays</p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose} type="button" aria-label="Close modal">
@@ -108,53 +83,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         <div className="modal-body">
-          {/* API Endpoint Section */}
-          <div className="settings-section">
-            <div className="section-label-group">
-              <Server size={16} className="section-icon" />
-              <h4>Backend REST API Endpoint</h4>
-            </div>
-            <div className="api-input-row">
-              <input
-                type="text"
-                value={settings.apiUrl}
-                onChange={(e) => setSettings({ ...settings, apiUrl: e.target.value })}
-                className="styled-text-input"
-                placeholder="http://localhost:5000"
-              />
-              <button
-                type="button"
-                className={`ping-test-btn${pingStatus === "testing" ? " is-testing" : ""}`}
-                onClick={handleTestConnection}
-                disabled={pingStatus === "testing"}
-              >
-                {pingStatus === "testing" ? (
-                  <RefreshCw size={14} className="spin-animation" />
-                ) : (
-                  <Activity size={14} />
-                )}
-                <span>Test Ping</span>
-              </button>
-            </div>
-            {pingStatus === "success" && (
-              <div className="connection-status-msg success">
-                <span className="status-indicator-dot online" />
-                <span>Connected successfully — Latency: {pingLatency}ms</span>
-              </div>
-            )}
-            {pingStatus === "error" && (
-              <div className="connection-status-msg error">
-                <span className="status-indicator-dot offline" />
-                <span>Could not reach backend at {settings.apiUrl}</span>
-              </div>
-            )}
-          </div>
-
-            {/* Telemetry Polling */}
+          {/* Telemetry Polling */}
           <div className="settings-section">
             <div className="section-label-group">
               <RefreshCw size={16} className="section-icon" />
-              <h4>Telemetry Polling Interval</h4>
+              <h4>Telemetry Auto-Refresh Interval</h4>
             </div>
             <div className="radio-pills-row">
               {[
@@ -178,27 +111,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Sound & Visuals */}
           <div className="settings-section">
             <div className="section-label-group">
-              <Volume2 size={16} className="section-icon" />
-              <h4>Alerts & High-Contrast Options</h4>
+              <Eye size={16} className="section-icon" />
+              <h4>Visual Overlays & Cues</h4>
             </div>
             <div className="toggle-row">
-              <span className="toggle-label">Audible Chime on Critical Pothole (`D40`) Detection</span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings.enableAudioAlerts}
-                  onChange={(e) => setSettings({ ...settings, enableAudioAlerts: e.target.checked })}
-                />
-                <span className="slider round" />
-              </label>
-            </div>
-            <div className="toggle-row">
-              <span className="toggle-label">High-Contrast Thick Bounding Boxes for Low-Light</span>
+              <span className="toggle-label">High-Contrast Defect Bounding Boxes (Enhanced Visibility)</span>
               <label className="switch">
                 <input
                   type="checkbox"
                   checked={settings.highContrastBoxes}
                   onChange={(e) => setSettings({ ...settings, highContrastBoxes: e.target.checked })}
+                />
+                <span className="slider round" />
+              </label>
+            </div>
+            <div className="toggle-row">
+              <span className="toggle-label">Audible Notification on Pothole Detection</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={settings.enableAudioAlerts}
+                  onChange={(e) => setSettings({ ...settings, enableAudioAlerts: e.target.checked })}
                 />
                 <span className="slider round" />
               </label>
@@ -211,7 +144,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             Cancel
           </button>
           <button className="primary-modal-btn" onClick={handleSave} type="button">
-            {savedSuccess ? "✓ Settings Saved" : "Save Preferences"}
+            {savedSuccess ? "✓ Preferences Saved" : "Save Preferences"}
           </button>
         </div>
       </div>

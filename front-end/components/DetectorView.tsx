@@ -17,9 +17,20 @@ export function DetectorView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getSamples()
-      .then((res) => setSamples(res.samples))
-      .catch(() => setSamples([]));
+    const loadSamples = () => {
+      getSamples()
+        .then((res) => setSamples(res.samples))
+        .catch(() => setSamples([]));
+    };
+
+    loadSamples();
+
+    const onRefresh = () => {
+      loadSamples();
+    };
+
+    window.addEventListener("crackmap:refresh", onRefresh);
+    return () => window.removeEventListener("crackmap:refresh", onRefresh);
   }, []);
 
   async function runDetection(promise: Promise<DetectionResult>) {
