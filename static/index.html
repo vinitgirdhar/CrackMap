@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrackMap — Executive Road Health Intelligence</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Leaflet CSS for GIS Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <!-- 1. Top Brand Bar & Navigation -->
+    <div class="top-nav-bar">
+        <div class="brand-logo" onclick="switchTab('detect')">
+            🛣️ Crack<span>Map</span>
+        </div>
+        <div class="nav-pills">
+            <button class="nav-pill-btn active" id="pill-detect" onclick="switchTab('detect')">AI Inspector</button>
+            <button class="nav-pill-btn" id="pill-gis" onclick="switchTab('gis')">GIS CrackMap</button>
+            <button class="nav-pill-btn" id="pill-analytics" onclick="switchTab('analytics')">Analytics</button>
+            <button class="nav-pill-btn" id="pill-train" onclick="switchTab('train')">Train Model</button>
+        </div>
+        <div class="nav-actions">
+            <div class="action-circle-btn" title="Refresh Live Data" onclick="fetchDashboardSummary()">🔄</div>
+            <div class="action-circle-btn" title="Global Search">🔍</div>
+            <div class="action-circle-btn" title="Alerts">🔔</div>
+            <div class="user-avatar-badge" title="AI Inspection Officer">AI</div>
+        </div>
+    </div>
+
+    <!-- 2. Hero Section & Large Dynamic Metrics -->
+    <div class="hero-section">
+        <div class="hero-title-group">
+            <span class="hero-sub">Road Health Intelligence</span>
+            <h1 class="hero-main">Pavement Inspection AI</h1>
+        </div>
+        <div class="hero-metrics-row">
+            <div class="metric-item">
+                <span class="metric-label">Surveyed Area</span>
+                <span class="metric-number" id="hero-surveyed-area">990,000<sup>m²</sup></span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Verified Pavement</span>
+                <span class="metric-number" id="hero-verified-pavement">638,514<sup>m²</sup></span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Active Hazards</span>
+                <span class="metric-number" id="hero-hazards-count">--<sup>pts</sup></span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Survey Frames</span>
+                <span class="metric-number" id="hero-frames-count">--<sup>imgs</sup></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Stepper Progress Pipeline -->
+    <div class="stepper-pipeline">
+        <div class="stepper-track"></div>
+        <div class="stepper-track-fill" id="stepper-fill"></div>
+        
+        <div class="stepper-node">
+            <div class="node-circle done">✓</div>
+            <div class="node-label">Capture Road Footage</div>
+        </div>
+        <div class="stepper-node">
+            <div class="node-circle done">✓</div>
+            <div class="node-label">Asphalt Corridor Masking</div>
+        </div>
+        <div class="stepper-node">
+            <div class="node-circle done">✓</div>
+            <div class="node-label">AI Defect Localization</div>
+        </div>
+        <div class="stepper-node">
+            <div class="node-circle active">●</div>
+            <div class="node-label">Real-time Hotspot Search</div>
+        </div>
+        <div class="stepper-node">
+            <div class="node-circle">5</div>
+            <div class="node-label">Municipal Dispatch</div>
+        </div>
+        <div class="stepper-node">
+            <div class="node-circle">6</div>
+            <div class="node-label">Contractor Repair</div>
+        </div>
+    </div>
+
+    <!-- 4. Sub-Navigation Filter Pills -->
+    <div class="sub-nav-row">
+        <div class="sub-filter-pills">
+            <button class="sub-pill active" onclick="switchTab('detect')">Details & AI Studio</button>
+            <button class="sub-pill" onclick="switchTab('gis')">Geotagged GIS</button>
+            <button class="sub-pill" onclick="switchTab('analytics')">Taxonomy Breakdown</button>
+            <button class="sub-pill" onclick="switchTab('train')">Custom Fine-Tuning</button>
+        </div>
+        <div class="sub-tools-group">
+            <div class="action-circle-btn" title="Sort & Filter">⇅</div>
+            <div class="action-circle-btn" title="Settings">⚙</div>
+        </div>
+    </div>
+
+    <!-- 5. Main Dashboard Cards -->
+    <div class="dashboard-grid">
+        <!-- Left Dark Feature Card -->
+        <div class="dark-feature-card">
+            <div>
+                <div class="card-header-row">
+                    <div>
+                        <h3>Defect Matrix & Saliency</h3>
+                        <p id="feature-subtitle">All Pavement Anomaly Layers (JRA Standards)</p>
+                    </div>
+                    <div class="circle-arrow-link" onclick="switchTab('detect')">↗</div>
+                </div>
+
+                <div class="dark-card-legend">
+                    <div><span class="legend-dot" style="background:#ef4444;"></span> Active Hazards (<span id="legend-potholes-count">0</span> Potholes)</div>
+                    <div><span class="legend-dot" style="background:#22c55e;"></span> Cracks (<span id="legend-cracks-count">0</span> Linears)</div>
+                </div>
+
+                <div class="avatars-overlap-row">
+                    <div class="avatar-face" style="background:#3b82f6;">TK</div>
+                    <div class="avatar-face" style="background:#8b5cf6;">AD</div>
+                    <div class="avatar-face" style="background:#ec4899;">CB</div>
+                    <div class="avatar-face" style="background:#10b981;">SM</div>
+                    <div class="avatar-face" style="background:#334155;">+7</div>
+                </div>
+            </div>
+
+            <!-- Dynamic Equalizer Dot Matrix -->
+            <div class="dot-matrix-equalizer" id="equalizer-grid">
+                <!-- Injected dynamically via JavaScript -->
+            </div>
+        </div>
+
+        <!-- Right 4 Quadrant Pastel Cards -->
+        <div class="quadrant-grid">
+            <!-- 1. Sage Card (Average Severity) -->
+            <div class="pastel-card sage">
+                <div class="pastel-card-top">
+                    <span class="pastel-title">Average Severity</span>
+                    <div class="circle-arrow-link" style="width:28px;height:28px;font-size:0.85rem;">↗</div>
+                </div>
+                <div>
+                    <div class="pastel-number" id="card-avg-severity">1.195<span style="font-size:1.1rem;color:#64748b;"> /defect</span></div>
+                    <div class="pastel-sublabel" id="card-severity-desc" style="color:#16a34a;">🟢 Routine Maintenance</div>
+                </div>
+            </div>
+
+            <!-- 2. Peach Card (Taxonomy Breakdown) -->
+            <div class="pastel-card peach">
+                <div class="pastel-card-top">
+                    <span class="pastel-title">Defect Distribution</span>
+                    <div class="circle-arrow-link" style="width:28px;height:28px;font-size:0.85rem;">↗</div>
+                </div>
+                <div class="micro-bar-chart" id="micro-bar-container">
+                    <!-- Dynamic Bars Injected -->
+                </div>
+            </div>
+
+            <!-- 3. Sky Blue Card (Pavement Quality Index) -->
+            <div class="pastel-card sky">
+                <div class="pastel-card-top">
+                    <span class="pastel-title">Pavement Quality</span>
+                    <div class="circle-arrow-link" style="width:28px;height:28px;font-size:0.85rem;">↗</div>
+                </div>
+                <div>
+                    <div class="pastel-number" id="card-pci">88.4<span style="font-size:1.1rem;color:#64748b;"> %</span></div>
+                    <div class="pastel-sublabel" style="color:#2563eb;">⚡ Real-time Dynamic</div>
+                </div>
+            </div>
+
+            <!-- 4. Ice Card (Municipal Coverage) -->
+            <div class="pastel-card ice">
+                <div class="pastel-card-top">
+                    <span class="pastel-title">Survey Coverage</span>
+                    <div class="circle-arrow-link" style="width:28px;height:28px;font-size:0.85rem;">↗</div>
+                </div>
+                <div>
+                    <div class="pastel-number"><span id="card-prefectures-count">7</span><span style="font-size:1.1rem;color:#64748b;"> prefectures</span></div>
+                    <div class="pastel-sublabel">Tokyo & Kanto Municipalities</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Interactive Workspace Containers -->
+    
+    <!-- VIEW 1: AI INSPECTOR STUDIO -->
+    <div id="view-detect" class="workspace-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h3 class="section-headline">📸 AI Road Damage Inspection Studio</h3>
+                <p class="section-subtext" style="margin-bottom: 0;">Upload road photos (Aerial, Drone, Dashcam, or Smartphone). The AI isolates asphalt and flags potholes and cracks.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span style="font-size: 0.85rem; font-weight: 700; color: #475569;">Benchmark Presets:</span>
+                <select id="sample-select" class="sample-select" onchange="loadSampleImage(this.value)">
+                    <option value="">-- Choose Sample --</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div class="upload-dropzone" onclick="document.getElementById('file-input').click()">
+            <div class="dropzone-icon">📁</div>
+            <div class="dropzone-text">Click or Drag & Drop Road Image to Inspect</div>
+            <div class="dropzone-hint">Supports JPG, PNG, WEBP · Automatic Road Surface Masking (0% Tree False Positives)</div>
+            <input type="file" id="file-input" style="display:none;" accept="image/*" onchange="handleFileUpload(event)">
+        </div>
+
+        <!-- Results Grid -->
+        <div class="results-grid" id="results-section" style="display: none;">
+            <div class="image-card">
+                <h4>Original Roadway Frame</h4>
+                <img id="raw-preview" class="preview-img" src="" alt="Raw Image">
+            </div>
+            <div class="image-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0;">🎯 Detected Road Defects (Asphalt Corridor)</h4>
+                    <span id="latency-badge" style="font-size: 0.75rem; background: #e2e8f0; padding: 3px 10px; border-radius: 999px; font-weight: 700;">-- ms</span>
+                </div>
+                <img id="annotated-preview" class="preview-img" src="" alt="Annotated Image">
+            </div>
+        </div>
+
+        <!-- Defect Inventory Table -->
+        <div id="table-section" style="display: none;">
+            <h4 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 8px;">📋 Detected Defect Inventory</h4>
+            <div class="table-container">
+                <table class="defect-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Code</th>
+                            <th>Damage Name</th>
+                            <th>Category</th>
+                            <th>Severity</th>
+                            <th>Confidence</th>
+                            <th>Bounding Box [X1, Y1, X2, Y2]</th>
+                            <th>Area (px²)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="defect-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW 2: GIS CRACKMAP -->
+    <div id="view-gis" class="workspace-container" style="display: none;">
+        <h3 class="section-headline">🗺️ Municipal CrackMap & Geotagged Damage Heatmap</h3>
+        <p class="section-subtext">Crowdsensed pavement anomalies mapped across municipal highway networks.</p>
+        <div id="leaflet-map" style="height: 520px; width: 100%; border-radius: 20px; border: 1px solid #e2e8f0;"></div>
+    </div>
+
+    <!-- VIEW 3: DATASET ANALYTICS -->
+    <div id="view-analytics" class="workspace-container" style="display: none;">
+        <h3 class="section-headline">📊 Road Damage Dataset & Analytics Explorer</h3>
+        <p class="section-subtext">PASCAL VOC annotation distribution, damage frequencies, and format converters.</p>
+        <div id="analytics-content">Loading live dataset statistics...</div>
+    </div>
+
+    <!-- VIEW 4: MODEL FINE-TUNING & RETRAINING -->
+    <div id="view-train" class="workspace-container" style="display: none;">
+        <h3 class="section-headline">⚡ Fine-Tune & Retrain AI Detector on Your Pothole Photos</h3>
+        <p class="section-subtext">Upload multiple road/pothole images. The engine automatically labels defects and fine-tunes PyTorch neural network weights.</p>
+        
+        <!-- Batch Upload Zone -->
+        <div class="upload-dropzone" onclick="document.getElementById('batch-file-input').click()" style="margin-bottom: 20px;">
+            <div class="dropzone-icon">🚀</div>
+            <div class="dropzone-text">Upload Custom Pothole Images (Batch)</div>
+            <div class="dropzone-hint">Select one or multiple pothole photos from your computer</div>
+            <input type="file" id="batch-file-input" style="display:none;" accept="image/*" multiple onchange="handleBatchUpload(event)">
+        </div>
+
+        <div id="batch-upload-status" style="margin-bottom: 20px; display: none; font-size: 0.9rem; font-weight: 600; color: #16a34a;"></div>
+
+        <!-- Training Controls -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Epochs</label>
+                <select id="train-epochs" class="sample-select" style="width: 100%;">
+                    <option value="3">3 Epochs (Fast)</option>
+                    <option value="5" selected>5 Epochs (Recommended)</option>
+                    <option value="10">10 Epochs</option>
+                    <option value="20">20 Epochs</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Batch Size</label>
+                <select id="train-bs" class="sample-select" style="width: 100%;">
+                    <option value="2">2</option>
+                    <option value="4" selected>4</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Learning Rate</label>
+                <select id="train-lr" class="sample-select" style="width: 100%;">
+                    <option value="0.001">0.001</option>
+                    <option value="0.005" selected>0.005</option>
+                    <option value="0.01">0.01</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Architecture</label>
+                <select id="train-arch" class="sample-select" style="width: 100%;">
+                    <option value="fasterrcnn_mobilenet" selected>Faster R-CNN MobileNet</option>
+                    <option value="ssdlite_mobilenet">SSDLite MobileNet</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn-primary" id="btn-start-train" onclick="triggerTrainingRun()">🚀 Start Real Model Fine-Tuning</button>
+
+        <!-- Live Progress Container -->
+        <div id="train-progress-box" style="margin-top: 24px; display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 8px;">
+                <span id="train-status-text">Training Neural Network...</span>
+                <span id="train-loss-text">Loss: --</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-bottom: 12px;">
+                <div id="train-progress-bar" style="width: 0%; height: 100%; background: #22c55e; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="train-log-messages" style="font-family: monospace; font-size: 0.8rem; color: #475569; max-height: 120px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
