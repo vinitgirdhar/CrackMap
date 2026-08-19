@@ -5,6 +5,7 @@ inference detector loads YOLO weights, so fine-tuning YOLO (rather than the
 separate Faster R-CNN in train.py) is what changes results in the UI.
 """
 
+import os
 import random
 import shutil
 from pathlib import Path
@@ -99,6 +100,36 @@ def build_yolo_dataset(
     }
 
 
+def _install_robust_torch_save() -> None:
+    """Make checkpoint writes survive transient Windows file-lock failures.
+
+    Ultralytics already wraps torch.save in a retry, but it only catches
+    RuntimeError. On Windows an antivirus scan or flush race surfaces as
+    ValueError("I/O operation on closed file"), which slips past that guard and
+    kills the whole run at the moment it writes a checkpoint - losing every
+    completed epoch. Widen the retry to cover those exception types too.
+    """
+    import time as _time
+
+    import torch
+
+    current = torch.save
+    if getattr(current, "_crackmap_robust", False):
+        return
+
+    def robust_save(*args, **kwargs):
+        for attempt in range(5):
+            try:
+                return current(*args, **kwargs)
+            except (ValueError, OSError, RuntimeError):
+                if attempt == 4:
+                    raise
+                _time.sleep(0.5 * (2 ** attempt))
+
+    robust_save._crackmap_robust = True
+    torch.save = robust_save
+
+
 def _auto_batch(device: str, imgsz: int, requested: Optional[int] = None) -> int:
     """Pick a batch size that fits the VRAM actually free right now.
 
@@ -179,6 +210,7 @@ def finetune_yolo(
     batch: Optional[int] = None,
     device: Optional[str] = None,
     project_dir: Optional[Path | str] = None,
+    workers: Optional[int] = None,
     progress_callback: Optional[Callable[[int, float, int], None]] = None,
 ) -> Dict[str, Any]:
     """Fine-tune YOLOv8 and publish the best weights for inference.
@@ -207,8 +239,18 @@ def finetune_yolo(
     from ultralytics import YOLO
     import torch
 
+    _install_robust_torch_save()
+
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if workers is None:
+        # Ultralytics defaults to 8 loader workers. On Windows each one is a
+        # full interpreter copy, and on a 16GB laptop that pressure showed up
+        # as corrupted interpreter state mid-run ("I/O operation on closed
+        # file" while pickling a checkpoint, and cv2 "returned a result with
+        # an exception set" during augmentation) rather than a clean OOM.
+        workers = 2 if os.name == "nt" else 8
 
     batch = _auto_batch(device, imgsz, batch)
 
@@ -264,6 +306,7 @@ def finetune_yolo(
             patience=20,
             verbose=False,
             plots=False,
+            workers=workers,
         )
     except Exception as exc:
         if "out of memory" not in str(exc).lower():

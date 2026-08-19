@@ -65,12 +65,35 @@ def cmd_train(args: argparse.Namespace) -> int:
         print("ERROR: every label file is empty - nothing to learn from.")
         return 1
 
+    # Silently training on a fraction of the folder wastes a full run and
+    # produces metrics identical to the previous one, which is easy to
+    # misread as "training had no effect". Make it impossible to miss.
+    skipped = ds["skipped_unlabelled"]
+    if skipped:
+        used = ds["train_images"] + ds["val_images"]
+        print(
+            f"\n{'!' * 62}\n"
+            f"WARNING: {skipped} image(s) have NO label file and are EXCLUDED.\n"
+            f"         Training on {used} of {used + skipped} images in the folder.\n"
+            f"         Run this first to label the new images:\n"
+            f"             python train_potholes.py autolabel\n"
+            f"{'!' * 62}"
+        )
+        if skipped > used and not args.allow_partial:
+            print(
+                "\nABORTED: more images are unlabelled than labelled, so this run\n"
+                "would ignore most of your data. Run 'autolabel', or pass\n"
+                "--allow-partial to train on the labelled subset anyway."
+            )
+            return 1
+
     print(f"\nFine-tuning YOLOv8 for {args.epochs} epochs...")
     res = finetune_yolo(
         ds["data_yaml"],
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,
+        workers=args.workers,
         progress_callback=lambda e, l, t: print(f"  epoch {e}/{t}  loss={l:.4f}", flush=True),
     )
     print(f"\nDone on {res['device']}. Metrics: {res['metrics']}")
@@ -209,6 +232,17 @@ def main() -> int:
         help="batch size (default: sized automatically from free VRAM)"
     )
     p_train.add_argument("--val-split", type=float, default=0.2)
+    p_train.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="dataloader workers (default: 2 on Windows to avoid memory pressure)",
+    )
+    p_train.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="train even if most images in the folder are unlabelled",
+    )
     p_train.set_defaults(func=cmd_train)
 
     p_prev = sub.add_parser("preview", help="render label overlays to inspect them")
