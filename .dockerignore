@@ -1,0 +1,7 @@
+.git
+.pytest_cache
+front-end
+notebooks
+docs
+**/__pycache__
+*.md
