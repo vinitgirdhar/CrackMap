@@ -1,9 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Target, Upload, Info, ChevronDown, ChevronUp, Calculator } from "lucide-react";
-import { detectFromFile, detectFromSample, getSamples } from "@/lib/api";
-import type { DetectionResult } from "@/lib/types";
+import {
+  Camera,
+  Target,
+  Upload,
+  ChevronDown,
+  ChevronUp,
+  Calculator,
+  Crosshair,
+  MapPin,
+  Search,
+  Send,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
+import {
+  detectFromFile,
+  detectFromSample,
+  getSamples,
+  logInspection,
+  reverseGeocode,
+  searchPlaces,
+} from "@/lib/api";
+import type { DetectionResult, GeocodeResult } from "@/lib/types";
 
 const CONF_THRESHOLD = 0.25;
 
@@ -14,6 +34,16 @@ export function DetectorView() {
   const [result, setResult] = useState<DetectionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMethodologyOpen, setIsMethodologyOpen] = useState(true);
+  const [lastFilename, setLastFilename] = useState("uploaded.jpg");
+  const [roadName, setRoadName] = useState("");
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [place, setPlace] = useState<GeocodeResult | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isLogging, setIsLogging] = useState(false);
+  const [logStatus, setLogStatus] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState<GeocodeResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -49,14 +79,104 @@ export function DetectorView() {
   function handleSampleChange(name: string) {
     setSelectedSample(name);
     if (!name) return;
+    setLogStatus(null);
+    setLastFilename(name);
     void runDetection(detectFromSample(name, CONF_THRESHOLD));
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setLogStatus(null);
+    setLastFilename(file.name);
     void runDetection(detectFromFile(file, CONF_THRESHOLD));
     e.target.value = "";
+  }
+
+  /** GPS fix -> real OpenStreetMap street name, so the case carries a real address. */
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setLogStatus("Geolocation is not supported in this browser.");
+      return;
+    }
+    setIsLocating(true);
+    setLogStatus(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        setCoords(next);
+        try {
+          const resolved = await reverseGeocode(next.lat, next.lon);
+          setPlace(resolved);
+          // Never clobber a name the inspector typed themselves.
+          setRoadName((current) => current.trim() || resolved.road_name);
+        } catch {
+          setLogStatus(
+            "Captured the coordinates, but the address lookup failed — type the road name manually."
+          );
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      () => {
+        setLogStatus("Could not get your location. You can still log with just a road name.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  /** For logging a road you are not standing on — desk triage of a photo. */
+  async function handlePlaceSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (placeQuery.trim().length < 2) return;
+    setIsSearching(true);
+    setLogStatus(null);
+    try {
+      setPlaceResults(await searchPlaces(placeQuery.trim()));
+    } catch (err) {
+      setLogStatus(err instanceof Error ? err.message : "Place search failed");
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  function choosePlace(result: GeocodeResult) {
+    if (result.lat === null || result.lon === null) return;
+    setCoords({ lat: result.lat, lon: result.lon });
+    setPlace(result);
+    setRoadName(result.road_name);
+    setPlaceResults([]);
+    setPlaceQuery("");
+  }
+
+  async function handleLogToCivicReport() {
+    if (!result || !roadName.trim()) return;
+    setIsLogging(true);
+    setLogStatus(null);
+    try {
+      await logInspection({
+        filename: lastFilename,
+        road_name: roadName.trim(),
+        lat: coords?.lat ?? null,
+        lon: coords?.lon ?? null,
+        total_defects: result.total_defects,
+        severity_score: result.severity_score,
+        composite_damage_score: result.composite_damage_score,
+        boxes: result.boxes,
+        annotated_image: result.annotated_image,
+        address: place?.display_name ?? null,
+        ward: place?.ward ?? null,
+        city: place?.city ?? null,
+        state: place?.state ?? null,
+        osm_road_type: place?.osm_road_type ?? null,
+      });
+      setLogStatus("success");
+    } catch (err) {
+      setLogStatus(err instanceof Error ? err.message : "Failed to log finding");
+    } finally {
+      setIsLogging(false);
+    }
   }
 
   const defectLabel = result
@@ -202,6 +322,115 @@ export function DetectorView() {
             </table>
           </div>
         </div>
+      )}
+
+      {result && result.total_defects > 0 && (
+        <section className="log-finding-card">
+          <header>
+            <MapPin size={18} />
+            <div>
+              <strong>Log this finding to the civic pipeline</strong>
+              <span>
+                A location turns a detection into a municipal grievance — it decides which authority owns
+                the road, how the defect is triaged and what the repair is estimated to cost.
+              </span>
+            </div>
+          </header>
+
+          <div className="log-finding-grid">
+            <label className="log-field">
+              <span>Road / location name</span>
+              <input
+                type="text"
+                placeholder="e.g. Hill Road, Bandra West"
+                value={roadName}
+                onChange={(e) => setRoadName(e.target.value)}
+              />
+            </label>
+
+            <div className="log-field">
+              <span>Coordinates</span>
+              <button
+                type="button"
+                className={`locate-btn${coords ? " has-fix" : ""}`}
+                onClick={useMyLocation}
+                disabled={isLocating}
+              >
+                {isLocating ? (
+                  <Loader2 size={14} className="spin-animation" />
+                ) : (
+                  <Crosshair size={14} />
+                )}
+                {coords ? `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}` : "Use my GPS location"}
+              </button>
+            </div>
+
+            <form className="log-field" onSubmit={handlePlaceSearch}>
+              <span>Or look up a road</span>
+              <div className="place-search">
+                <input
+                  type="text"
+                  placeholder="Search OpenStreetMap…"
+                  value={placeQuery}
+                  onChange={(e) => setPlaceQuery(e.target.value)}
+                />
+                <button type="submit" disabled={isSearching || placeQuery.trim().length < 2}>
+                  {isSearching ? <Loader2 size={14} className="spin-animation" /> : <Search size={14} />}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {placeResults.length > 0 && (
+            <ul className="place-results">
+              {placeResults.map((candidate) => (
+                <li key={`${candidate.lat}-${candidate.lon}-${candidate.display_name}`}>
+                  <button type="button" onClick={() => choosePlace(candidate)}>
+                    <strong>{candidate.road_name}</strong>
+                    <span>{candidate.display_name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {place && (
+            <div className="resolved-place">
+              <CheckCircle2 size={14} />
+              <div>
+                <strong>Resolved to {place.road_name}</strong>
+                <span>
+                  {place.display_name}
+                  {place.osm_road_type ? ` · OSM highway=${place.osm_road_type}` : ""}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="log-finding-actions">
+            <button
+              type="button"
+              className="primary-pill-btn"
+              onClick={handleLogToCivicReport}
+              disabled={!roadName.trim() || isLogging}
+            >
+              {isLogging ? <Loader2 size={15} className="spin-animation" /> : <Send size={15} />}
+              Log finding for triage
+            </button>
+            <span className="civic-subtle-inline">
+              {result.total_defects} pothole{result.total_defects === 1 ? "" : "s"} · severity{" "}
+              {result.severity_score}/5 · damage score {result.composite_damage_score}/100
+            </span>
+          </div>
+
+          {logStatus === "success" && (
+            <p className="log-success">
+              <CheckCircle2 size={14} /> Logged and triaged. Open the <strong>Civic Pipeline</strong> tab —
+              it is waiting in the intake queue.
+            </p>
+          )}
+          {logStatus && logStatus !== "success" && <p className="batch-status error">{logStatus}</p>}
+        </section>
       )}
 
       {/* Transparent Scoring & Severity Methodology Panel */}

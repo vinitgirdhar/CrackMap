@@ -187,6 +187,87 @@ $$S = \max\left(15, \, 100 - (N_{\text{defects}} \times 12) - (\overline{\text{S
 
 ---
 
+## 🏛️ Civic Repair Pipeline — From Detection to a Certified Repair
+
+Detection is only the first half of the problem. A pothole that is found but never fixed is
+still a pothole. CrackMap therefore carries each finding through the full municipal lifecycle
+and emits the documents a road cell actually needs.
+
+### Pipeline Stages
+
+```
+ 1 Intake & Triage        findings bundled, road-classified, priority-scored, costed
+ 2 Filed to Portal        routed by coordinate to the owning authority, grievance no. issued
+ 3 Acknowledged           automatic: portal registers it and assigns an officer
+ 4 Tender & Bidding       empanelled contractors quote against the bill of quantities
+ 5 Work Order Issued      one bid awarded on price, duration and rating
+ 6 Repair In Progress     automatic: crew mobilises, work advances on the clock
+ 7 Awaiting Re-Inspection automatic: contractor reports completion
+ 8 Re-Inspection Passed   after-photo re-scored by the same YOLOv8 detector
+ 9 Case Closed            completion certificate released
+```
+
+Stages 3, 6 and 7 are reached by the **passage of time**, not by a button — they are derived
+from timestamps and persisted on read (`backend/app/cases.py::reconcile`). A simulated clock
+compresses one municipal working day into `SIM_SECONDS_PER_DAY` seconds (default `12`), so a
+full intake to verification cycle is watchable in under a minute. Raise it toward `86400` for
+real time.
+
+### Municipal Routing & Triage
+
+| Concern | How it is decided |
+| :--- | :--- |
+| **Owning authority** | The coordinate is matched against mapped municipal limits (MCGM, PMC, NMMC, TMC, MCD, BBMP), falling back to the state PWD general intake. Every case records *why* it routed where it did. |
+| **Street & road class** | Reverse-geocoded via OpenStreetMap Nominatim; the OSM `highway` tag maps to Arterial / Collector / Local. |
+| **Priority** | `0.55 x severity + 0.25 x defect density + 0.20 x road-class weight`, banded into P1-P4 with 24 h / 72 h / 7 d / 30 d response windows. |
+| **Response window** | A *response* deadline, met when the work order is issued — not a completion deadline. A slow repair after a prompt response is not a breach. |
+| **Repair cost** | A priced bill of quantities: saw-cutting, tack coat, 50 mm hot-mix patch, compaction, plus traffic management (8%), contingency (5%) and GST (18%). |
+
+> *Filing is **simulated**. CrackMap models municipal intake behaviour — grievance number
+> format, owning department, acknowledgement lag, statutory response window — and transmits
+> nothing to any external authority.*
+
+### Verification Loop
+
+A repair is not closed on a contractor's word. An after-photo is re-scored by the same detector
+that raised the original finding; a case passes only when at most **34%** of the originally
+detected defects remain. Anything worse is returned to the contractor as **rework**, and the
+repair clock restarts.
+
+### Deliverables
+
+Every case produces artefacts, not just screen state:
+
+| Artefact | Endpoint | Contents |
+| :--- | :--- | :--- |
+| **Case dossier** (PDF) | `/api/civic/cases/{id}/dossier.pdf` | Cover, municipal filing record, photographic evidence per finding, priced BOQ, re-inspection result, full audit trail |
+| **Completion certificate** (PDF) | `/api/civic/cases/{id}/certificate.pdf` | Issued once re-inspection passes; carries before/after detection counts and both signature blocks |
+| **Open-data record** (JSON) | `/api/civic/cases/{id}/export.json` | The whole case object, for municipal data exchange |
+| **Defect inventory** (CSV) | `/api/civic/cases/{id}/export.csv` | One row per detected pothole with coordinates and bounding boxes |
+
+### Civic API Surface
+
+```
+GET  /api/geocode/reverse?lat&lon     coordinate -> real street, ward, city, OSM road type
+GET  /api/geocode/search?q            place name -> candidate coordinates
+GET  /api/gis-data                    every geolocated finding + its case's live stage
+POST /api/inspections                 log a detection: geocode, classify, triage
+GET  /api/civic/portals | /stages | /stats | /events
+GET  /api/civic/cases                 board view (evidence images omitted)
+GET  /api/civic/cases/{id}            single case with evidence
+POST /api/civic/cases                 bundle findings into a grievance
+POST /api/civic/cases/{id}/submit     file with the routed authority
+POST /api/civic/cases/{id}/tender     invite the contractor panel
+POST /api/civic/cases/{id}/award      award one bid
+POST /api/civic/cases/{id}/verify     multipart after-photo -> pass or rework
+POST /api/civic/cases/{id}/close      close and release the certificate
+```
+
+The map has **no demo pins**: `/api/gis-data` returns only findings that were actually logged,
+so what is plotted is always real inspection output.
+
+---
+
 ## 💻 Tech Stack & Engineering Tools
 
 | Component | Technology | Version | Purpose |
@@ -210,35 +291,62 @@ CrackMap/
 ├── backend/
 │   ├── app/
 │   │   ├── __init__.py
+│   │   ├── cases.py            # Civic stage machine & denormalised case read model
+│   │   ├── civic.py            # Portal routing, triage, SLA, BOQ, simulated clock
 │   │   ├── config.py           # Environment & path configuration
+│   │   ├── db.py               # SQLite persistence & migrations
 │   │   ├── detector.py         # YOLOv8 inference wrapper & scoring engine
+│   │   ├── geocode.py          # OpenStreetMap Nominatim reverse/forward geocoding
 │   │   ├── main.py             # FastAPI REST endpoints & CORS
+│   │   ├── report_pdf.py       # Case dossier & completion certificate generation
 │   │   └── schemas.py          # Pydantic response/request models
+│   ├── data/
+│   │   └── crackmap.db         # Findings, cases, contractors, audit events
 │   ├── models/
 │   │   └── best.pt             # Trained YOLOv8s model weights (21.5 MB)
 │   ├── samples/                # Benchmark evaluation image samples (1.jpg to 20.jpg)
 │   ├── tests/
-│   │   └── test_backend.py     # Pytest test suite (8 tests)
+│   │   └── test_backend.py     # Pytest test suite (17 tests)
 │   ├── requirements.txt        # Python backend dependencies
 │   └── README.md
 ├── docs/
 │   └── assets/                 # Evaluation charts, confusion matrix, and detection samples
 ├── front-end/
 │   ├── app/
+│   │   ├── civic.css           # Civic pipeline component styles
 │   │   ├── globals.css         # Global styling & hidden scrollbar rules
 │   │   ├── layout.tsx          # Root Next.js layout
 │   │   └── page.tsx            # Main Inspection Studio page
 │   ├── components/
+│   │   ├── civic/              # Civic pipeline workspace
+│   │   │   ├── AuditTimeline.tsx   # Persisted pipeline event trail
+│   │   │   ├── BidTable.tsx        # Tender board & award decision
+│   │   │   ├── BoqTable.tsx        # Priced bill of quantities
+│   │   │   ├── CaseCard.tsx        # Board card with live SLA & repair progress
+│   │   │   ├── CaseDetail.tsx      # Case drawer: filing record, evidence, actions
+│   │   │   ├── DeliverablesRow.tsx # Dossier, certificate, JSON, CSV
+│   │   │   ├── IntakeQueue.tsx     # Unfiled findings awaiting a grievance
+│   │   │   ├── KpiStrip.tsx        # Board-level counters
+│   │   │   ├── LiveFeed.tsx        # Board-wide activity stream
+│   │   │   ├── StageRail.tsx       # The pipeline, with live per-stage counts
+│   │   │   └── VerifyPanel.tsx     # After-photo re-inspection
 │   │   ├── AnalyticsView.tsx   # Comprehensive dataset & benchmark dashboard
+│   │   ├── CivicPipelineView.tsx # Civic workspace orchestrator
 │   │   ├── DetectorView.tsx    # Live pothole detection canvas & scoring methodology
 │   │   ├── FilterControlsPopover.tsx # Confidence & NMS threshold popover
+│   │   ├── GisMap.tsx          # Leaflet map: auto-fit bounds, stage-coloured markers
+│   │   ├── GisView.tsx         # Map panel, legend & live indicator
 │   │   ├── HeroSection.tsx     # Top telemetry stat strip
 │   │   ├── SettingsModal.tsx   # Display preferences modal
+│   │   ├── StepperPipeline.tsx # End-to-end flow driven by real counters
 │   │   └── TopNavBar.tsx       # Navigation bar & global refresh button
 │   ├── e2e/
-│   │   └── detect.spec.ts      # Playwright end-to-end test suite
+│   │   ├── civic.spec.ts       # Civic pipeline UI end-to-end suite
+│   │   └── detect.spec.ts      # Detection studio end-to-end suite
 │   ├── lib/
 │   │   ├── api.ts              # Typed API client
+│   │   ├── civic.ts            # Stage metadata, formatting, live interpolation
+│   │   ├── hooks/              # Polling & clock hooks
 │   │   └── types.ts            # TypeScript interfaces
 │   ├── public/assets/          # Static image assets
 │   ├── package.json

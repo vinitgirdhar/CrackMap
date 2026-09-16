@@ -9,7 +9,6 @@ import {
   Cpu,
   CheckCircle2,
   PieChart,
-  HardDrive,
   FileCode2,
   ExternalLink,
 } from "lucide-react";

@@ -11,7 +11,13 @@ class Settings:
     # Model
     MODEL_PATH: str = os.getenv("MODEL_PATH", str(BASE_DIR / "models" / "best.pt"))
     SAMPLES_DIR: str = os.getenv("SAMPLES_DIR", str(BASE_DIR / "samples"))
+    DB_PATH: str = os.getenv("DB_PATH", str(BASE_DIR / "data" / "crackmap.db"))
     
+    # Civic pipeline simulated clock: wall-clock seconds per municipal working
+    # day. Portal acknowledgement, crew mobilisation, repair progress and SLA
+    # windows all elapse on this clock. Raise it toward 86400 for real time.
+    SIM_SECONDS_PER_DAY: float = float(os.getenv("SIM_SECONDS_PER_DAY", "12.0"))
+
     # Inference defaults
     DEFAULT_CONF: float = float(os.getenv("CONF_THRESHOLD", "0.35"))
     DEFAULT_IOU: float = float(os.getenv("IOU_THRESHOLD", "0.5"))

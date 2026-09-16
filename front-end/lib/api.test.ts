@@ -4,12 +4,32 @@ import {
   detectFromSample,
   getDashboardSummary,
   getDatasetStats,
-  getGisData,
+  getMapPoints,
   getSamples,
   getSystemInfo,
   sampleImageUrl,
   startTraining,
   uploadPotholeImages,
+  logInspection,
+  getInspections,
+  getContractors,
+  getPortals,
+  getPipelineStats,
+  getPipelineEvents,
+  getCases,
+  getCase,
+  createCase,
+  submitCase,
+  tenderCase,
+  awardCase,
+  verifyCase,
+  closeCase,
+  dossierUrl,
+  certificateUrl,
+  caseJsonUrl,
+  caseCsvUrl,
+  reverseGeocode,
+  searchPlaces,
 } from "./api";
 
 function mockFetchOnce(body: unknown, ok = true) {
@@ -46,9 +66,9 @@ describe("GET wrappers", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/samples");
   });
 
-  it("getGisData hits /api/gis-data", async () => {
+  it("getMapPoints hits /api/gis-data", async () => {
     const fetchMock = mockFetchOnce([]);
-    await getGisData();
+    await getMapPoints();
     expect(fetchMock).toHaveBeenCalledWith("/api/gis-data");
   });
 
@@ -58,9 +78,9 @@ describe("GET wrappers", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/dataset-stats");
   });
 
-  it("throws on a non-ok response instead of resolving with an error body", async () => {
+  it("throws on a non-ok response, surfacing the API's own detail", async () => {
     mockFetchOnce({ detail: "nope" }, false);
-    await expect(getDashboardSummary()).rejects.toThrow("/api/dashboard-summary failed: 500");
+    await expect(getDashboardSummary()).rejects.toThrow("nope");
   });
 
   it("sampleImageUrl builds the per-sample path and encodes the name", () => {
@@ -117,5 +137,163 @@ describe("POST wrappers", () => {
     expect(body.get("batch_size")).toBe("4");
     expect(body.get("learning_rate")).toBe("0.005");
     expect(body.get("architecture")).toBe("fasterrcnn_mobilenet");
+  });
+});
+
+describe("Civic pipeline wrappers", () => {
+  it("logInspection posts JSON to /api/inspections", async () => {
+    const fetchMock = mockFetchOnce({ id: 1 });
+    await logInspection({
+      filename: "a.jpg",
+      road_name: "MG Road",
+      lat: 1,
+      lon: 2,
+      total_defects: 1,
+      severity_score: 3,
+      composite_damage_score: 50,
+      boxes: [],
+      annotated_image: "data:image/jpeg;base64,x",
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/inspections");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body).road_name).toBe("MG Road");
+  });
+
+  it("getInspections hits /api/inspections", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getInspections();
+    expect(fetchMock).toHaveBeenCalledWith("/api/inspections");
+  });
+
+  it("getContractors hits /api/contractors", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getContractors();
+    expect(fetchMock).toHaveBeenCalledWith("/api/contractors");
+  });
+
+  it("getPortals hits /api/civic/portals", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getPortals();
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/portals");
+  });
+
+  it("getPipelineStats hits /api/civic/stats", async () => {
+    const fetchMock = mockFetchOnce({ total_cases: 0 });
+    await getPipelineStats();
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/stats");
+  });
+
+  it("getPipelineEvents passes the limit through", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getPipelineEvents(25);
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/events?limit=25");
+  });
+
+  it("getCases hits /api/civic/cases", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getCases();
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/cases");
+  });
+
+  it("getCase hits the per-case path", async () => {
+    const fetchMock = mockFetchOnce({ id: 4 });
+    await getCase(4);
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/cases/4");
+  });
+
+  it("createCase posts inspection_ids", async () => {
+    const fetchMock = mockFetchOnce({ id: 1 });
+    await createCase([1, 2]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/civic/cases");
+    expect(JSON.parse(init.body)).toEqual({ inspection_ids: [1, 2] });
+  });
+
+  it("submitCase posts to the submit action", async () => {
+    const fetchMock = mockFetchOnce({ status: "SUBMITTED" });
+    await submitCase(7);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/civic/cases/7/submit");
+    expect(init.method).toBe("POST");
+  });
+
+  it("tenderCase posts to the tender action", async () => {
+    const fetchMock = mockFetchOnce({ status: "TENDERED" });
+    await tenderCase(7);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/civic/cases/7/tender");
+  });
+
+  it("awardCase posts the chosen contractor", async () => {
+    const fetchMock = mockFetchOnce({ status: "WORK_ORDERED" });
+    await awardCase(7, 3);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/civic/cases/7/award");
+    expect(JSON.parse(init.body)).toEqual({ contractor_id: 3 });
+  });
+
+  it("verifyCase uploads the after-photo as multipart", async () => {
+    const fetchMock = mockFetchOnce({ status: "VERIFIED" });
+    const file = new File(["after"], "after.jpg", { type: "image/jpeg" });
+    await verifyCase(7, file);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/civic/cases/7/verify");
+    expect(init.method).toBe("POST");
+    expect((init.body as FormData).get("file")).toBe(file);
+  });
+
+  it("closeCase posts to the close action", async () => {
+    const fetchMock = mockFetchOnce({ status: "CLOSED" });
+    await closeCase(7);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/civic/cases/7/close");
+  });
+
+  it("builds every deliverable url from the case id", () => {
+    expect(dossierUrl(7)).toBe("/api/civic/cases/7/dossier.pdf");
+    expect(certificateUrl(7)).toBe("/api/civic/cases/7/certificate.pdf");
+    expect(caseJsonUrl(7)).toBe("/api/civic/cases/7/export.json");
+    expect(caseCsvUrl(7)).toBe("/api/civic/cases/7/export.csv");
+  });
+});
+
+describe("Geocoding wrappers", () => {
+  it("reverseGeocode passes the coordinate through", async () => {
+    const fetchMock = mockFetchOnce({ road_name: "Hill Road" });
+    await reverseGeocode(19.0596, 72.8295);
+    expect(fetchMock).toHaveBeenCalledWith("/api/geocode/reverse?lat=19.0596&lon=72.8295");
+  });
+
+  it("searchPlaces url-encodes the query", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await searchPlaces("MG Road, Pune", 3);
+    expect(fetchMock).toHaveBeenCalledWith("/api/geocode/search?q=MG%20Road%2C%20Pune&limit=3");
+  });
+});
+
+describe("error surfacing", () => {
+  it("raises the FastAPI detail string instead of a bare status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ detail: "Contractor 9 did not bid on case 4" }),
+      })
+    );
+    await expect(awardCase(4, 9)).rejects.toThrow("Contractor 9 did not bid on case 4");
+  });
+
+  it("falls back to the status code when the body is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new Error("not json");
+        },
+      })
+    );
+    await expect(getCases()).rejects.toThrow("502");
   });
 });

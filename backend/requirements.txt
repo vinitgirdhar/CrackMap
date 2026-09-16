@@ -7,3 +7,5 @@ python-multipart
 ultralytics
 pillow
 pydantic
+reportlab
+svglib

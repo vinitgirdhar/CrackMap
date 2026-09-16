@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { X, Settings2, RefreshCw, Volume2, Eye } from "lucide-react";
+import { X, Settings2, RefreshCw, Eye } from "lucide-react";
 
 interface SettingsState {
   autoRefreshInterval: number; // in seconds (0 = off)
@@ -25,17 +25,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Hydrated in an effect rather than a lazy initializer so the server and the
+  // first client render agree; queued so the effect body itself never calls
+  // setState (React compiler lint).
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    const restore = () => {
       try {
         const saved = localStorage.getItem("crackmap_system_settings");
-        if (saved) {
-          setSettings(JSON.parse(saved));
-        }
+        if (saved) setSettings(JSON.parse(saved));
       } catch {
-        // fallback
+        // Private mode / blocked site data: defaults are correct here.
       }
-    }
+    };
+    const id = setTimeout(restore, 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {
