@@ -15,18 +15,50 @@ import type {
   Portal,
   Stage,
   CaseView,
+  CompletedRepair,
   PipelineEvent,
   PipelineStats,
   MapPoint,
 } from "./types";
 
 
+/** Carries the status and path so callers can react to *why* a call failed. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly path: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+
+  /**
+   * A 404 on a route this build of the frontend knows about means the backend
+   * is older than the frontend — almost always a dev server that was not
+   * restarted after a pull.
+   */
+  get isMissingRoute(): boolean {
+    return this.status === 404;
+  }
+}
+
 /**
  * FastAPI reports problems as `{ detail: "..." }`. Surfacing that instead of a
  * bare status code is the difference between "award failed: 400" and
  * "Contractor 9 did not bid on case 4" in the UI.
+ *
+ * The exception is FastAPI's own generic 404 body, `{"detail": "Not Found"}`,
+ * which on its own tells nobody anything — so that one gets rewritten to name
+ * the route and the likely cause.
  */
 export async function describeFailure(res: Response, action: string): Promise<string> {
+  if (res.status === 404) {
+    return (
+      `${action} is not available on the backend (404). ` +
+      "The API is older than this frontend — restart the backend so it picks up the current routes."
+    );
+  }
   try {
     const body = await res.json();
     const detail = (body as { detail?: unknown }).detail;
@@ -41,6 +73,10 @@ export async function describeFailure(res: Response, action: string): Promise<st
   return `${action} failed: ${res.status}`;
 }
 
+async function fail(res: Response, path: string): Promise<ApiError> {
+  return new ApiError(await describeFailure(res, path), res.status, path);
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
@@ -48,7 +84,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(await describeFailure(res, path));
+    throw await fail(res, path);
   }
   return res.json() as Promise<T>;
 }
@@ -56,7 +92,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 async function postAction<T>(path: string): Promise<T> {
   const res = await fetch(path, { method: "POST" });
   if (!res.ok) {
-    throw new Error(await describeFailure(res, path));
+    throw await fail(res, path);
   }
   return res.json() as Promise<T>;
 }
@@ -64,7 +100,7 @@ async function postAction<T>(path: string): Promise<T> {
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (!res.ok) {
-    throw new Error(await describeFailure(res, path));
+    throw await fail(res, path);
   }
   return res.json() as Promise<T>;
 }
@@ -235,15 +271,21 @@ export function awardCase(caseId: number, contractorId: number): Promise<CaseVie
 export async function verifyCase(caseId: number, afterPhoto: File): Promise<CaseView> {
   const formData = new FormData();
   formData.append("file", afterPhoto);
-  const res = await fetch(`/api/civic/cases/${caseId}/verify`, { method: "POST", body: formData });
+  const path = `/api/civic/cases/${caseId}/verify`;
+  const res = await fetch(path, { method: "POST", body: formData });
   if (!res.ok) {
-    throw new Error(await describeFailure(res, "re-inspection"));
+    throw await fail(res, path);
   }
   return res.json() as Promise<CaseView>;
 }
 
 export function closeCase(caseId: number): Promise<CaseView> {
   return postAction<CaseView>(`/api/civic/cases/${caseId}/close`);
+}
+
+/** Before/after record for every case whose repair has been AI-verified. */
+export function getCompletedRepairs(): Promise<CompletedRepair[]> {
+  return getJson<CompletedRepair[]>("/api/civic/completed");
 }
 
 /* ── Deliverables ───────────────────────────────────────────────────────── */

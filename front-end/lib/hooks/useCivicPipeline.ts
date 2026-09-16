@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getCases, getInspections, getPipelineStats } from "@/lib/api";
+import { ApiError, getCases, getInspections, getPipelineStats } from "@/lib/api";
 import type { CaseView, Inspection, PipelineStats } from "@/lib/types";
 
 export interface CivicPipelineState {
@@ -11,6 +11,13 @@ export interface CivicPipelineState {
   lastUpdated: number | null;
   isLoading: boolean;
   error: string | null;
+  /**
+   * The backend answered, but without the civic routes — it is running an
+   * older build than this frontend. Worth calling out separately, because a
+   * bare "Not Found" sends people hunting for a bug that is really a stale
+   * dev server.
+   */
+  isStaleBackend: boolean;
   refresh: () => void;
 }
 
@@ -29,6 +36,7 @@ export function useCivicPipeline(isActive: boolean, intervalMs = 2500): CivicPip
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isStaleBackend, setIsStaleBackend] = useState(false);
 
   // Guards against overlapping polls on a slow backend, and against setting
   // state after unmount.
@@ -58,9 +66,11 @@ export function useCivicPipeline(isActive: boolean, intervalMs = 2500): CivicPip
       setStats(nextStats);
       setLastUpdated(Date.now() / 1000);
       setError(null);
+      setIsStaleBackend(false);
     } catch (err) {
       if (!mounted.current) return;
       setError(err instanceof Error ? err.message : "Could not reach the pipeline API");
+      setIsStaleBackend(err instanceof ApiError && err.isMissingRoute);
     } finally {
       inFlight.current = false;
       if (mounted.current) setIsLoading(false);
@@ -89,5 +99,14 @@ export function useCivicPipeline(isActive: boolean, intervalMs = 2500): CivicPip
     return () => window.removeEventListener("crackmap:refresh", onRefresh);
   }, [load]);
 
-  return { cases, findings, stats, lastUpdated, isLoading, error, refresh: () => void load() };
+  return {
+    cases,
+    findings,
+    stats,
+    lastUpdated,
+    isLoading,
+    error,
+    isStaleBackend,
+    refresh: () => void load(),
+  };
 }

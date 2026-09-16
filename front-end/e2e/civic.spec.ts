@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import type { CaseView, Inspection, MapPoint, PipelineEvent, PipelineStats } from "../lib/types";
+import type {
+  CaseView,
+  CompletedRepair,
+  Inspection,
+  MapPoint,
+  PipelineEvent,
+  PipelineStats,
+} from "../lib/types";
 
 /**
  * Civic pipeline UI, driven entirely off mocked API routes.
@@ -230,10 +237,101 @@ const mapPoints: MapPoint[] = [
   },
 ];
 
+function completedRepair(overrides: Partial<CompletedRepair> = {}): CompletedRepair {
+  const now = Date.now() / 1000;
+  return {
+    case_id: 12,
+    status: "CLOSED",
+    tracking_id: "MCGM/RTD/2026/00012",
+    portal: {
+      code: "MCGM",
+      name: "MCGM Pothole Fixit — Voice of Citizen",
+      authority: "Brihanmumbai Municipal Corporation",
+      department: "Roads & Traffic Department",
+      portal_url: "https://portal.mcgm.gov.in",
+      simulated: true,
+    },
+    primary_road: "Carter Road, Bandra West",
+    roads: ["Carter Road, Bandra West"],
+    address: "Carter Road, Bandra West, Mumbai, Maharashtra, India",
+    ward: "Bandra West",
+    lat: 19.0632,
+    lon: 72.8207,
+    road_class: "Collector",
+    summary:
+      "Patched 5 potholes across 2.2 m² of collector carriageway on Carter Road, Bandra West. " +
+      "SafeStreet Civil Works completed the work with a 4-person crew in 1.5 of 2 promised day(s) " +
+      "— inside the promised window — for a contract value of Rs 11,800. A post-repair AI " +
+      "re-inspection cleared 80% of the originally detected defects.",
+    before_image:
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7",
+    after_image:
+      "data:image/gif;base64,R0lGODlhAQABAIAAAP8AAAAAACH5BAEAAAAALAAAAAABAAEAAAICTAEAOw==",
+    before_filename: "before.jpg",
+    after_filename: "after.jpg",
+    potholes_before: 5,
+    potholes_after: 1,
+    effectiveness_pct: 80,
+    severity_before: 4.2,
+    damage_score_before: 41,
+    damage_score_after: 88,
+    reinspection_attempts: 1,
+    patch_area_m2: 2.2,
+    priority: "P1",
+    priority_label: "Critical — Safety Hazard",
+    contractor_name: "SafeStreet Civil Works",
+    contractor_specialty: "Emergency 24h repair",
+    contractor_rating: 4.7,
+    crew_count: 4,
+    promised_days: 2,
+    actual_days: 1.5,
+    lifecycle_days: 4.2,
+    estimate_inr: 12500,
+    awarded_inr: 11800,
+    savings_inr: 700,
+    charges: [
+      { label: "Pavement works", note: "Saw-cutting, tack coat, 50 mm hot-mix patch, compaction & edge sealing", amount_inr: 8700 },
+      { label: "Traffic management, barricading & safety signage", note: "", amount_inr: 696 },
+      { label: "Contingency provision", note: "", amount_inr: 470 },
+      { label: "GST @ 18%", note: "On the net payable", amount_inr: 1730 },
+      { label: "Engineer's estimate", note: "Priced from the bill of quantities before tender", amount_inr: 12500 },
+      { label: "Awarded contract value", note: "Rs 700 below the estimate", amount_inr: 11800 },
+    ],
+    boq: null,
+    sla_state: "MET",
+    sla_hours: 24,
+    officer: "Ward Engineer — R. Shaikh",
+    submitted_at: now - 5000,
+    acknowledged_at: now - 4900,
+    awarded_at: now - 4000,
+    repaired_at: now - 1000,
+    verified_at: now - 500,
+    closed_at: now - 100,
+    seconds_per_sim_day: SECONDS_PER_SIM_DAY,
+    note: {
+      reference: "SCW/WC/2026/4821",
+      statement:
+        "Work under MCGM/RTD/2026/00012 at Carter Road, Bandra West is complete. Our 4-person " +
+        "crew saw-cut and removed the distressed bituminous layer over 2.2 m², applied an SS-1 " +
+        "bitumen emulsion tack coat, and laid a 50 mm compacted bituminous concrete patch across " +
+        "5 potholes, finishing with edge sealing and surface regulation. The carriageway was " +
+        "reopened to traffic 5 hours after final compaction. The patch carries a 6-month defect " +
+        "liability period from the date of completion.",
+      materials: "Bituminous concrete (hot-mix) · SS-1 bitumen emulsion tack coat · 50 mm compacted thickness",
+      defect_liability_months: 6,
+      traffic_reopened_after_hours: 5,
+      signed_by: "SafeStreet Civil Works — Site Engineer",
+    },
+    note_issued_at: now - 1000,
+    ...overrides,
+  };
+}
+
 async function mockPipeline(
   page: import("@playwright/test").Page,
   cases: CaseView[],
-  pipelineStats = stats()
+  pipelineStats = stats(),
+  completed: CompletedRepair[] = []
 ) {
   await page.route("**/api/civic/stats", (route) =>
     route.fulfill({ json: pipelineStats })
@@ -242,6 +340,7 @@ async function mockPipeline(
   await page.route("**/api/civic/cases/*", (route) =>
     route.fulfill({ json: cases[0] })
   );
+  await page.route("**/api/civic/completed", (route) => route.fulfill({ json: completed }));
   await page.route("**/api/civic/events**", (route) => route.fulfill({ json: events }));
   await page.route("**/api/inspections", (route) => route.fulfill({ json: [finding()] }));
   await page.route("**/api/gis-data", (route) => route.fulfill({ json: mapPoints }));
@@ -441,6 +540,77 @@ test("a verified case exposes the completion certificate", async ({ page }) => {
   await expect(certificate).toHaveAttribute("href", "/api/civic/cases/4/certificate.pdf");
 });
 
+test("completed repairs section is absent until a repair is verified", async ({ page }) => {
+  await mockPipeline(page, [caseView()], stats(), []);
+  await page.goto("/");
+  await page.locator("#pill-civic").click();
+  await expect(page.locator(".case-board")).toBeVisible();
+  await expect(page.locator(".completed-panel")).toHaveCount(0);
+});
+
+test("a verified repair shows its before/after record below the case board", async ({ page }) => {
+  await mockPipeline(page, [caseView()], stats(), [completedRepair()]);
+  await page.goto("/");
+  await page.locator("#pill-civic").click();
+
+  const panel = page.locator(".completed-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText("Completed repairs");
+
+  // It sits below the case board, not inside a drawer.
+  const boardBox = await page.locator(".case-board").boundingBox();
+  const panelBox = await panel.boundingBox();
+  expect(panelBox!.y).toBeGreaterThan(boardBox!.y);
+
+  const card = panel.locator(".completed-card").first();
+  await expect(card).toContainText("Carter Road, Bandra West");
+
+  // Both images visible directly, no click required.
+  const before = card.locator(".completed-evidence-pane", { hasText: "Before" });
+  const after = card.locator(".completed-evidence-pane", { hasText: "After" });
+  await expect(before.locator("img")).toBeVisible();
+  await expect(after.locator("img")).toBeVisible();
+  await expect(before).toContainText("5 pothole(s) detected");
+  await expect(after).toContainText("1 pothole(s) remaining");
+
+  // Duration, crew, cost — visible without expanding anything.
+  await expect(card).toContainText("1.5d");
+  await expect(card).toContainText("on time");
+  await expect(card).toContainText("4-person crew");
+  await expect(card).toContainText("SafeStreet Civil Works");
+  await expect(card).toContainText("₹11,800");
+  await expect(card).toContainText("under estimate");
+  await expect(card).toContainText("4.7 / 5");
+
+  // Concise charges breakdown.
+  const charges = card.locator(".completed-charges");
+  await expect(charges).toContainText("Pavement works");
+  await expect(charges).toContainText("GST @ 18%");
+  await expect(charges).toContainText("Awarded contract value");
+
+  // Contractor's own handover notice.
+  const notice = card.locator(".completed-notice");
+  await expect(notice).toContainText("SCW/WC/2026/4821");
+  await expect(notice).toContainText("5 potholes");
+  await expect(notice).toContainText("6-month defect liability");
+  await expect(notice).toContainText("SafeStreet Civil Works — Site Engineer");
+});
+
+test("multiple completed repairs render as one card each", async ({ page }) => {
+  await mockPipeline(
+    page,
+    [caseView()],
+    stats(),
+    [completedRepair(), completedRepair({ case_id: 13, primary_road: "Hill Road, Bandra West" })]
+  );
+  await page.goto("/");
+  await page.locator("#pill-civic").click();
+
+  const panel = page.locator(".completed-panel");
+  await expect(panel).toContainText("2");
+  await expect(panel.locator(".completed-card")).toHaveCount(2);
+});
+
 test("the map states plainly that it has no demo pins", async ({ page }) => {
   await mockPipeline(page, [], stats({ total_cases: 0, total_findings: 0, unassigned_findings: 0 }));
   await page.route("**/api/gis-data", (route) => route.fulfill({ json: [] }));
@@ -450,4 +620,29 @@ test("the map states plainly that it has no demo pins", async ({ page }) => {
 
   await expect(page.locator(".gis-map-empty")).toContainText("No geotagged findings yet");
   await expect(page.locator(".gis-map-empty")).toContainText("no demo pins");
+});
+
+test("a backend without the civic routes explains itself", async ({ page }) => {
+  // Exactly what a dev server that was not restarted after a pull returns.
+  await page.route("**/api/civic/**", (route) =>
+    route.fulfill({ status: 404, json: { detail: "Not Found" } })
+  );
+  await page.route("**/api/inspections", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/gis-data", (route) => route.fulfill({ json: [] }));
+  await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com|arcgisonline\.com/, (route) =>
+    route.abort()
+  );
+
+  await page.goto("/");
+  await page.locator("#pill-civic").click();
+
+  const notice = page.locator(".stale-backend-notice");
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("running an older build");
+  await expect(notice).toContainText("/api/civic/*");
+  await expect(notice.locator("pre")).toContainText("uvicorn backend.app.main:app");
+  await expect(notice).toContainText("BACKEND_URL");
+
+  // The bare "Not Found" banner must not be what the user sees.
+  await expect(page.locator(".civic-connection-error")).toHaveCount(0);
 });

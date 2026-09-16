@@ -302,6 +302,67 @@ def test_deliverables(client):
     assert client.get("/api/civic/cases/999999/dossier.pdf").status_code == 404
 
 
+def test_completed_repairs(client):
+    """The before/after record that backs the case board's completed section."""
+    finding = client.post("/api/inspections", json=_finding_payload(road_name="Carter Road")).json()
+    case_id = client.post("/api/civic/cases", json={"inspection_ids": [finding["id"]]}).json()["id"]
+
+    # Not completed yet: absent from the list, not a 404 (it's a filtered list).
+    before_ids = {r["case_id"] for r in client.get("/api/civic/completed").json()}
+    assert case_id not in before_ids
+
+    client.post(f"/api/civic/cases/{case_id}/submit")
+    _await_stage(client, case_id, "ACKNOWLEDGED")
+    client.post(f"/api/civic/cases/{case_id}/tender")
+    tendered = client.get(f"/api/civic/cases/{case_id}").json()
+    client.post(
+        f"/api/civic/cases/{case_id}/award",
+        json={"contractor_id": tendered["bids"][0]["contractor_id"]},
+    )
+    _await_stage(client, case_id, "REPAIRED")
+
+    from io import BytesIO
+    from PIL import Image
+
+    blank = BytesIO()
+    Image.new("RGB", (640, 480), (90, 90, 90)).save(blank, format="JPEG")
+    client.post(
+        f"/api/civic/cases/{case_id}/verify",
+        files={"file": ("after_clean.jpg", blank.getvalue(), "image/jpeg")},
+    )
+    client.post(f"/api/civic/cases/{case_id}/close")
+
+    records = client.get("/api/civic/completed").json()
+    record = next(r for r in records if r["case_id"] == case_id)
+
+    assert record["status"] == "CLOSED"
+    assert record["primary_road"] == "Carter Road"
+    assert record["before_image"].startswith("data:image")
+    assert record["after_image"].startswith("data:image")
+    assert record["potholes_before"] == 4
+    assert record["potholes_after"] == 0
+    assert record["effectiveness_pct"] == 100.0
+    assert record["crew_count"] > 0
+    assert record["actual_days"] >= 0
+    assert record["promised_days"] > 0
+    assert record["awarded_inr"] > 0
+    assert record["savings_inr"] == pytest.approx(record["estimate_inr"] - record["awarded_inr"])
+
+    labels = [c["label"] for c in record["charges"]]
+    assert "Pavement works" in labels
+    assert "Awarded contract value" in labels
+    assert record["boq"]["total_inr"] == record["estimate_inr"]
+
+    assert record["summary"] and "Carter Road" in record["summary"]
+    assert record["note"]["reference"]
+    assert record["note"]["statement"]
+    assert record["note"]["defect_liability_months"] > 0
+    assert record["note"]["signed_by"]
+
+    assert record["portal"]["code"] == "MCGM"
+    assert record["tracking_id"] and record["tracking_id"].startswith("MCGM/")
+
+
 def test_stats_and_events(client):
     stats = client.get("/api/civic/stats").json()
     assert stats["total_cases"] >= 1

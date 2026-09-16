@@ -402,3 +402,82 @@ class CaseCreateRequest(BaseModel):
 
 class AwardRequest(BaseModel):
     contractor_id: int
+
+
+class HandoverNoteModel(BaseModel):
+    """The contractor's work-completion notice."""
+    reference: str
+    statement: str
+    materials: str
+    defect_liability_months: int
+    traffic_reopened_after_hours: int
+    signed_by: str
+
+
+class ChargeLineModel(BaseModel):
+    label: str
+    note: str = ""
+    amount_inr: float
+
+
+class CompletedRepairModel(BaseModel):
+    """Before/after record for a case whose repair has been verified."""
+    case_id: int
+    status: str
+    tracking_id: Optional[str] = None
+    portal: Optional[PortalModel] = None
+
+    primary_road: str
+    roads: List[str]
+    address: Optional[str] = None
+    ward: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    road_class: str = "Local"
+    summary: str
+
+    before_image: str = ""
+    after_image: str = ""
+    before_filename: str = ""
+    after_filename: str = ""
+
+    potholes_before: int
+    potholes_after: int
+    effectiveness_pct: float
+    severity_before: float = 0.0
+    damage_score_before: float = 0.0
+    damage_score_after: float = 0.0
+    reinspection_attempts: int = 1
+
+    patch_area_m2: float = 0.0
+    priority: Optional[str] = None
+    priority_label: Optional[str] = None
+
+    contractor_name: str
+    contractor_specialty: str = ""
+    contractor_rating: float = 0.0
+    crew_count: int = 0
+    promised_days: float = 0.0
+    actual_days: float = 0.0
+    lifecycle_days: float = 0.0
+
+    estimate_inr: float = 0.0
+    awarded_inr: float = 0.0
+    savings_inr: float = 0.0
+    charges: List[ChargeLineModel] = []
+    boq: Optional[BoqModel] = None
+
+    sla_state: str = "NOT_STARTED"
+    sla_hours: Optional[float] = None
+    officer: Optional[str] = None
+
+    submitted_at: Optional[float] = None
+    acknowledged_at: Optional[float] = None
+    awarded_at: Optional[float] = None
+    repaired_at: Optional[float] = None
+    verified_at: Optional[float] = None
+    closed_at: Optional[float] = None
+    seconds_per_sim_day: float
+
+    note: HandoverNoteModel
+    note_issued_at: Optional[float] = None

@@ -1572,3 +1572,400 @@
     .case-board { grid-template-columns: 1fr; }
     .map-legend-stats { margin-left: 0; }
 }
+
+/* ── Stale backend notice ──────────────────────────────────────────────────
+   A 404 on the civic routes means the API is older than this frontend, which
+   is not a bug to hunt — it is a dev server that needs restarting. Say so. */
+
+.stale-backend-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px 20px;
+    border-radius: var(--radius-card);
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.stale-backend-notice > svg {
+    color: #b45309;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.stale-backend-notice > div { min-width: 0; }
+
+.stale-backend-notice strong {
+    display: block;
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: #92400e;
+    margin-bottom: 4px;
+}
+
+.stale-backend-notice p {
+    font-size: 0.82rem;
+    color: #78350f;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 78ch;
+}
+
+.stale-backend-notice code {
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: rgba(180, 83, 9, 0.12);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.stale-backend-notice pre {
+    margin: 10px 0 8px;
+    padding: 10px 13px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #fde68a;
+    font-size: 0.76rem;
+    color: var(--text-dark);
+    overflow-x: auto;
+}
+
+.stale-backend-notice .civic-footnote { color: #a16207; margin-top: 0; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Completed repairs — the finished product
+   Before/after evidence, cost, duration and the contractor's own handover
+   notice for every repair an AI re-inspection has verified. Everything here
+   is meant to be read directly, not drilled into.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.completed-panel { border-top: 3px solid #16a34a; }
+
+.completed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 18px;
+}
+
+.completed-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px 20px;
+    border-radius: 16px;
+    background: var(--civic-surface);
+    border: 1px solid var(--civic-line);
+    box-shadow: var(--civic-shadow);
+}
+
+.completed-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.completed-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.completed-card-title svg { color: var(--text-light); flex-shrink: 0; }
+
+.completed-card-title h5 {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.completed-more-roads {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--civic-sunken);
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 800;
+}
+
+.completed-card-badges {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+
+.completed-priority-pill {
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.completed-verified-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    color: #15803d;
+    font-size: 0.7rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.completed-address {
+    margin: -8px 0 0;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+/* Before / after evidence pair */
+
+.completed-evidence {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.completed-evidence-pane {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--civic-line);
+    background: var(--civic-sunken);
+}
+
+.completed-evidence-pane img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+}
+
+.completed-evidence-placeholder {
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light);
+    font-size: 0.72rem;
+}
+
+.completed-evidence-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #ffffff;
+}
+
+.completed-evidence-tag.before { background: rgba(239, 68, 68, 0.88); }
+.completed-evidence-tag.after { background: rgba(22, 163, 74, 0.88); }
+
+.completed-evidence-caption {
+    padding: 6px 10px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--civic-surface);
+    border-top: 1px solid var(--civic-line);
+}
+
+.completed-summary {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+/* Duration / crew / cost / rating stat row */
+
+.completed-stat-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.completed-stat {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 11px;
+    background: var(--civic-sunken);
+}
+
+.completed-stat svg { color: var(--text-light); margin-top: 2px; flex-shrink: 0; }
+
+.completed-stat > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.completed-stat strong {
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: var(--text-dark);
+}
+
+.completed-stat strong .on-time { color: #16a34a; font-weight: 700; }
+.completed-stat strong .late { color: #ef4444; font-weight: 700; }
+
+.completed-stat span {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Shared label for the charges & notice blocks below the stats */
+
+.completed-block-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.completed-block-label svg { color: var(--text-light); }
+
+.completed-block-label code {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: var(--civic-sunken);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+/* Charges */
+
+.completed-charges {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--civic-sunken);
+    border: 1px solid var(--civic-line);
+}
+
+.completed-charges ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.completed-charges li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 5px 0;
+    font-size: 0.78rem;
+    color: var(--text-dark);
+    border-bottom: 1px dashed #e8edf4;
+}
+
+.completed-charges li:last-child { border-bottom: none; }
+
+.completed-charges li span { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.completed-charges li em { font-style: normal; font-size: 0.68rem; color: var(--text-light); }
+.completed-charges li strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.completed-charges li.is-total {
+    margin-top: 3px;
+    padding-top: 8px;
+    border-top: 1px solid var(--civic-line);
+    border-bottom: none;
+    font-weight: 800;
+}
+
+.completed-charges li.is-total strong { font-size: 0.86rem; color: #15803d; }
+
+/* Contractor handover notice */
+
+.completed-notice {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.completed-notice p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #78350f;
+    line-height: 1.6;
+}
+
+.completed-notice-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px dashed #fde68a;
+}
+
+.completed-notice-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #92400e;
+}
+
+.completed-notice-sign {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px dashed #fde68a;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #92400e;
+}
+
+@media (max-width: 900px) {
+    .completed-grid { grid-template-columns: 1fr; }
+    .completed-stat-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+    .completed-evidence { grid-template-columns: 1fr; }
+}

@@ -374,7 +374,6 @@ def assemble(case: Dict[str, Any], include_images: bool = False) -> Dict[str, An
     """One self-contained case object: everything the UI renders in one fetch."""
     now = time.time()
     spd = seconds_per_day()
-    portal = civic.get_portal(case["portal_code"] or "") if case["portal_code"] else None
     findings = _findings_for(case)
     progress = civic.repair_progress(case["awarded_at"], case["promised_days"] or 1.0, now, spd)
     # Responded == work order issued; see civic.sla_status.
@@ -416,18 +415,7 @@ def assemble(case: Dict[str, Any], include_images: bool = False) -> Dict[str, An
         "patch_area_m2": case["patch_area_m2"],
         "estimate_inr": case["estimate_inr"],
         "boq": case["boq"],
-        "portal": (
-            {
-                "code": portal["code"],
-                "name": portal["name"],
-                "authority": portal["authority"],
-                "department": portal["department"],
-                "portal_url": portal["portal_url"],
-                "simulated": True,
-            }
-            if portal
-            else None
-        ),
+        "portal": _portal_view(case),
         "tracking_id": case["tracking_id"],
         "routing_note": case["routing_note"],
         "officer": case["officer"],
@@ -558,3 +546,144 @@ def map_points() -> List[Dict[str, Any]]:
             }
         )
     return points
+
+
+# ── Completed-work records ──────────────────────────────────────────────────
+
+COMPLETED_STATUSES = ("VERIFIED", "CLOSED")
+
+
+def completed_records() -> List[Dict[str, Any]]:
+    """Before/after record for every case whose repair has been verified.
+
+    Carries the evidence images, so unlike the board list this is fetched only
+    when the set of completed cases actually changes.
+    """
+    reconcile_all()
+    records = []
+    for case in db.list_cases():
+        if case["status"] not in COMPLETED_STATUSES or not case["verification"]:
+            continue
+        records.append(_completed_record(case))
+    return records
+
+
+def _completed_record(case: Dict[str, Any]) -> Dict[str, Any]:
+    spd = seconds_per_day()
+    verification = case["verification"]
+    findings = _findings_for(case)
+    primary = next((f for f in findings if f["lat"] is not None), findings[0] if findings else None)
+    roads = [f["road_name"] for f in findings] or ["Unrecorded location"]
+
+    contractor = db.get_contractor(case["awarded_contractor_id"] or 0) or {}
+    contractor_name = contractor.get("name", "Unrecorded contractor")
+    specialty = contractor.get("specialty", "")
+    crew_count = int(contractor.get("crew_count", 0))
+    promised_days = float(case["promised_days"] or 0.0)
+    awarded_inr = float(case["awarded_inr"] or 0.0)
+
+    # What the job actually took, on the simulated clock the crew worked on.
+    actual_days = (
+        round(civic.sim_days_elapsed(case["awarded_at"], case["repaired_at"], spd), 2)
+        if case["awarded_at"] and case["repaired_at"]
+        else 0.0
+    )
+    end_at = case["closed_at"] or case["verified_at"]
+    lifecycle_days = (
+        round(civic.sim_days_elapsed(case["created_at"], end_at, spd), 2) if end_at else 0.0
+    )
+
+    road_class = (primary or {}).get("road_class") or "Local"
+    boq = case["boq"] or civic.build_boq(case["patch_area_m2"] or 0.0)
+
+    return {
+        "case_id": case["id"],
+        "status": case["status"],
+        "tracking_id": case["tracking_id"],
+        "portal": _portal_view(case),
+        "primary_road": roads[0],
+        "roads": roads,
+        "address": (primary or {}).get("address"),
+        "ward": (primary or {}).get("ward"),
+        "lat": (primary or {}).get("lat"),
+        "lon": (primary or {}).get("lon"),
+        "road_class": road_class,
+        "summary": civic.work_summary(
+            roads,
+            road_class,
+            case["total_potholes"],
+            case["patch_area_m2"] or 0.0,
+            contractor_name,
+            crew_count,
+            actual_days,
+            promised_days,
+            awarded_inr,
+            float(verification["effectiveness_pct"]),
+        ),
+        # Evidence pair: the frame that raised the grievance, and the
+        # re-inspection frame that closed it.
+        "before_image": (primary or {}).get("annotated_image", ""),
+        "after_image": verification.get("annotated_image", ""),
+        "before_filename": (primary or {}).get("filename", ""),
+        "after_filename": verification.get("filename", ""),
+        "potholes_before": int(verification["defects_before"]),
+        "potholes_after": int(verification["defects_after"]),
+        "effectiveness_pct": float(verification["effectiveness_pct"]),
+        "severity_before": (primary or {}).get("severity_score", 0.0),
+        "damage_score_before": (primary or {}).get("composite_damage_score", 0.0),
+        "damage_score_after": float(verification["damage_score_after"]),
+        "reinspection_attempts": int(verification.get("attempts", 1)),
+        "patch_area_m2": case["patch_area_m2"] or 0.0,
+        "priority": case["priority"],
+        "priority_label": case["priority_label"],
+        "contractor_name": contractor_name,
+        "contractor_specialty": specialty,
+        "contractor_rating": float(contractor.get("rating", 0.0)),
+        "crew_count": crew_count,
+        "promised_days": promised_days,
+        "actual_days": actual_days,
+        "lifecycle_days": lifecycle_days,
+        "estimate_inr": case["estimate_inr"] or 0.0,
+        "awarded_inr": awarded_inr,
+        "savings_inr": round((case["estimate_inr"] or 0.0) - awarded_inr, 2),
+        "charges": civic.charge_summary(boq, awarded_inr or None),
+        "boq": boq,
+        "sla_state": civic.sla_status(
+            case["sla_due_at"], case["awarded_at"], time.time(), spd
+        )["sla_state"],
+        "sla_hours": case["sla_hours"],
+        "officer": case["officer"],
+        "submitted_at": case["submitted_at"],
+        "acknowledged_at": case["acknowledged_at"],
+        "awarded_at": case["awarded_at"],
+        "repaired_at": case["repaired_at"],
+        "verified_at": case["verified_at"],
+        "closed_at": case["closed_at"],
+        "seconds_per_sim_day": spd,
+        "note": civic.handover_note(
+            case["id"],
+            case["tracking_id"],
+            contractor_name,
+            specialty,
+            crew_count,
+            case["patch_area_m2"] or 0.0,
+            case["total_potholes"],
+            roads,
+            datetime.fromtimestamp(case["repaired_at"] or case["created_at"]).year,
+        ),
+        "note_issued_at": case["repaired_at"],
+    }
+
+
+def _portal_view(case: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not case["portal_code"]:
+        return None
+    portal = civic.get_portal(case["portal_code"])
+    return {
+        "code": portal["code"],
+        "name": portal["name"],
+        "authority": portal["authority"],
+        "department": portal["department"],
+        "portal_url": portal["portal_url"],
+        "simulated": True,
+    }

@@ -20,6 +20,7 @@ from .schemas import (
     CaseCreateRequest,
     CaseViewModel,
     CompanionImageResult,
+    CompletedRepairModel,
     ContractorModel,
     DashboardSummaryResponse,
     DatasetStatsResponse,
@@ -317,6 +318,16 @@ def _require_case(case_id: int, include_images: bool = True) -> dict:
     if view is None:
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
     return view
+
+
+@app.get("/api/civic/completed", response_model=List[CompletedRepairModel], tags=["Civic Pipeline"])
+async def list_completed_repairs():
+    """Before/after record for every verified repair.
+
+    Separate from the board list because it carries the evidence image pair —
+    the frontend fetches it only when the set of completed cases changes.
+    """
+    return [CompletedRepairModel(**record) for record in cases.completed_records()]
 
 
 @app.get("/api/civic/cases", response_model=List[CaseViewModel], tags=["Civic Pipeline"])

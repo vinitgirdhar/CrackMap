@@ -384,3 +384,82 @@ export interface MapPoint {
   repaired: boolean;
   logged_at: number;
 }
+
+/* ── Completed repairs (before/after record) ─────────────────────────────── */
+
+export interface HandoverNote {
+  reference: string;
+  statement: string;
+  materials: string;
+  defect_liability_months: number;
+  traffic_reopened_after_hours: number;
+  signed_by: string;
+}
+
+export interface ChargeLine {
+  label: string;
+  note: string;
+  amount_inr: number;
+}
+
+export interface CompletedRepair {
+  case_id: number;
+  status: CaseStatus;
+  tracking_id: string | null;
+  portal: Portal | null;
+
+  primary_road: string;
+  roads: string[];
+  address: string | null;
+  ward: string | null;
+  lat: number | null;
+  lon: number | null;
+  road_class: string;
+  summary: string;
+
+  before_image: string;
+  after_image: string;
+  before_filename: string;
+  after_filename: string;
+
+  potholes_before: number;
+  potholes_after: number;
+  effectiveness_pct: number;
+  severity_before: number;
+  damage_score_before: number;
+  damage_score_after: number;
+  reinspection_attempts: number;
+
+  patch_area_m2: number;
+  priority: string | null;
+  priority_label: string | null;
+
+  contractor_name: string;
+  contractor_specialty: string;
+  contractor_rating: number;
+  crew_count: number;
+  promised_days: number;
+  actual_days: number;
+  lifecycle_days: number;
+
+  estimate_inr: number;
+  awarded_inr: number;
+  savings_inr: number;
+  charges: ChargeLine[];
+  boq: Boq | null;
+
+  sla_state: SlaState;
+  sla_hours: number | null;
+  officer: string | null;
+
+  submitted_at: number | null;
+  acknowledged_at: number | null;
+  awarded_at: number | null;
+  repaired_at: number | null;
+  verified_at: number | null;
+  closed_at: number | null;
+  seconds_per_sim_day: number;
+
+  note: HandoverNote;
+  note_issued_at: number | null;
+}

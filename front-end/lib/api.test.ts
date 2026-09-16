@@ -24,12 +24,14 @@ import {
   awardCase,
   verifyCase,
   closeCase,
+  getCompletedRepairs,
   dossierUrl,
   certificateUrl,
   caseJsonUrl,
   caseCsvUrl,
   reverseGeocode,
   searchPlaces,
+  ApiError,
 } from "./api";
 
 function mockFetchOnce(body: unknown, ok = true) {
@@ -248,6 +250,12 @@ describe("Civic pipeline wrappers", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/civic/cases/7/close");
   });
 
+  it("getCompletedRepairs hits /api/civic/completed", async () => {
+    const fetchMock = mockFetchOnce([]);
+    await getCompletedRepairs();
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/completed");
+  });
+
   it("builds every deliverable url from the case id", () => {
     expect(dossierUrl(7)).toBe("/api/civic/cases/7/dossier.pdf");
     expect(certificateUrl(7)).toBe("/api/civic/cases/7/certificate.pdf");
@@ -295,5 +303,51 @@ describe("error surfacing", () => {
       })
     );
     await expect(getCases()).rejects.toThrow("502");
+  });
+
+  it("rewrites FastAPI's bare 404 into something actionable", async () => {
+    // A backend that predates these routes answers {"detail": "Not Found"},
+    // which on its own sends people hunting for a bug in the frontend.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: "Not Found" }),
+      })
+    );
+    await expect(getCases()).rejects.toThrow(/\/api\/civic\/cases is not available/);
+    await expect(getCases()).rejects.toThrow(/restart the backend/);
+  });
+
+  it("tags a 404 so the UI can explain a stale backend", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: "Not Found" }),
+      })
+    );
+    const error = await getPipelineStats().catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(404);
+    expect(error.path).toBe("/api/civic/stats");
+    expect(error.isMissingRoute).toBe(true);
+  });
+
+  it("does not mistake a real error for a missing route", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ detail: "inspection_ids must not be empty" }),
+      })
+    );
+    const error = await createCase([]).catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.isMissingRoute).toBe(false);
+    expect(error.message).toBe("inspection_ids must not be empty");
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ClipboardList, Gauge, LayoutGrid, RefreshCw, WifiOff } from "lucide-react";
+import { ClipboardList, Gauge, LayoutGrid, RefreshCw, ServerCrash, WifiOff } from "lucide-react";
 import { useCivicPipeline } from "@/lib/hooks/useCivicPipeline";
 import { useNow } from "@/lib/hooks/useNow";
 import { STAGE_META, formatAgo } from "@/lib/civic";
@@ -9,6 +9,7 @@ import type { CaseStatus } from "@/lib/types";
 import { GisView } from "./GisView";
 import { CaseCard } from "./civic/CaseCard";
 import { CaseDetail } from "./civic/CaseDetail";
+import { CompletedRepairs } from "./civic/CompletedRepairs";
 import { IntakeQueue } from "./civic/IntakeQueue";
 import { KpiStrip } from "./civic/KpiStrip";
 import { LiveFeed } from "./civic/LiveFeed";
@@ -19,7 +20,8 @@ interface CivicPipelineViewProps {
 }
 
 export function CivicPipelineView({ isActive }: CivicPipelineViewProps) {
-  const { cases, findings, stats, lastUpdated, isLoading, error, refresh } = useCivicPipeline(isActive);
+  const { cases, findings, stats, lastUpdated, isLoading, error, isStaleBackend, refresh } =
+    useCivicPipeline(isActive);
   const [filter, setFilter] = useState<CaseStatus | "ALL">("ALL");
   const [openCaseId, setOpenCaseId] = useState<number | null>(null);
   const now = useNow(1000, isActive);
@@ -68,10 +70,28 @@ export function CivicPipelineView({ isActive }: CivicPipelineViewProps) {
         </div>
       </header>
 
-      {error && (
-        <p className="batch-status error civic-connection-error">
-          <WifiOff size={14} /> {error}
-        </p>
+      {isStaleBackend ? (
+        <section className="stale-backend-notice">
+          <ServerCrash size={22} />
+          <div>
+            <strong>The backend is running an older build</strong>
+            <p>
+              It answered, but without the <code>/api/civic/*</code> routes this workspace needs, so
+              there is nothing to show. Restart it and this page will fill in on its next poll.
+            </p>
+            <pre>python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload</pre>
+            <p className="civic-footnote">
+              If the backend is not on port 8000, point <code>BACKEND_URL</code> in{" "}
+              <code>front-end/.env.local</code> at wherever it is listening.
+            </p>
+          </div>
+        </section>
+      ) : (
+        error && (
+          <p className="batch-status error civic-connection-error">
+            <WifiOff size={14} /> {error}
+          </p>
+        )
       )}
 
       <KpiStrip stats={stats} />
@@ -131,6 +151,8 @@ export function CivicPipelineView({ isActive }: CivicPipelineViewProps) {
           </div>
         )}
       </section>
+
+      <CompletedRepairs isActive={isActive} />
 
       {openCaseId !== null && (
         <CaseDetail caseId={openCaseId} onClose={() => setOpenCaseId(null)} />

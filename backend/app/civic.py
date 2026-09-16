@@ -451,6 +451,159 @@ def severity_band(avg_score: float) -> Tuple[str, str, Tuple[int, int, int]]:
     return "Severe", "#ef4444", (239, 68, 68)
 
 
+# ── Completed-work record ───────────────────────────────────────────────────
+# What a contractor hands over when the patch is done, and how the money on it
+# is summarised for a citizen-facing record.
+
+# Defect liability period by the kind of work the contractor was empanelled
+# for, in months. Bituminous reconstruction and resurfacing carry the longest
+# guarantee; an emergency overnight patch the shortest.
+_LIABILITY_MONTHS = (
+    ("reconstruction", 24),
+    ("resurfacing", 24),
+    ("micro-surfacing", 18),
+    ("crack sealing", 12),
+    ("patching", 12),
+    ("emergency", 6),
+)
+DEFAULT_LIABILITY_MONTHS = 12
+
+
+def defect_liability_months(specialty: str) -> int:
+    lowered = (specialty or "").lower()
+    for keyword, months in _LIABILITY_MONTHS:
+        if keyword in lowered:
+            return months
+    return DEFAULT_LIABILITY_MONTHS
+
+
+def traffic_reopen_hours(total_area_m2: float) -> int:
+    """Hours before the lane goes back to traffic, driven by curing time."""
+    return int(min(12, max(4, 4 + math.ceil(max(0.0, total_area_m2) / 2.0))))
+
+
+def handover_note(
+    case_id: int,
+    tracking_id: Optional[str],
+    contractor_name: str,
+    contractor_specialty: str,
+    crew_count: int,
+    total_area_m2: float,
+    total_potholes: int,
+    roads: List[str],
+    year: int,
+) -> Dict[str, Any]:
+    """The contractor's work-completion notice.
+
+    Templated from the case's own facts — this is a simulated contractor, so the
+    wording is generated rather than written, but every number in it is the real
+    number recorded against the work order.
+    """
+    initials = "".join(word[0] for word in contractor_name.split()[:3] if word[:1].isalpha()).upper()
+    digest = hashlib.sha1(f"note-{case_id}".encode()).digest()
+    reference = f"{initials or 'CON'}/WC/{year}/{(digest[0] << 8 | digest[1]) % 9000 + 1000}"
+
+    months = defect_liability_months(contractor_specialty)
+    hours = traffic_reopen_hours(total_area_m2)
+    where = roads[0] if roads else "the reported location"
+    extra = f" and {len(roads) - 1} adjoining stretch(es)" if len(roads) > 1 else ""
+
+    statement = (
+        f"Work under {tracking_id or f'case #{case_id}'} at {where}{extra} is complete. "
+        f"Our {crew_count}-person crew saw-cut and removed the distressed bituminous layer over "
+        f"{total_area_m2} m², applied an SS-1 bitumen emulsion tack coat, and laid a 50 mm "
+        f"compacted bituminous concrete patch across {total_potholes} pothole"
+        f"{'' if total_potholes == 1 else 's'}, finishing with edge sealing and surface regulation. "
+        f"The carriageway was reopened to traffic {hours} hours after final compaction. "
+        f"The patch carries a {months}-month defect liability period from the date of completion."
+    )
+
+    return {
+        "reference": reference,
+        "statement": statement,
+        "materials": (
+            "Bituminous concrete (hot-mix) · SS-1 bitumen emulsion tack coat · "
+            "50 mm compacted thickness"
+        ),
+        "defect_liability_months": months,
+        "traffic_reopened_after_hours": hours,
+        "signed_by": f"{contractor_name} — Site Engineer",
+    }
+
+
+def work_summary(
+    roads: List[str],
+    road_class: str,
+    total_potholes: int,
+    total_area_m2: float,
+    contractor_name: str,
+    crew_count: int,
+    actual_days: float,
+    promised_days: float,
+    awarded_inr: float,
+    effectiveness_pct: float,
+) -> str:
+    """One-paragraph plain-language account of what was done to the road."""
+    where = ", ".join(roads[:2]) + (f" +{len(roads) - 2} more" if len(roads) > 2 else "")
+    pace = (
+        "inside the promised window"
+        if actual_days <= promised_days
+        else f"{actual_days - promised_days:.1f} day(s) past the promised window"
+    )
+    return (
+        f"Patched {total_potholes} pothole{'' if total_potholes == 1 else 's'} across "
+        f"{total_area_m2} m² of {road_class.lower()} carriageway on {where}. "
+        f"{contractor_name} completed the work with a {crew_count}-person crew in "
+        f"{actual_days:.1f} of {promised_days:.0f} promised day(s) — {pace} — for a contract value "
+        f"of Rs {awarded_inr:,.0f}. A post-repair AI re-inspection cleared "
+        f"{effectiveness_pct:.0f}% of the originally detected defects."
+    )
+
+
+def charge_summary(boq: Dict[str, Any], awarded_inr: Optional[float]) -> List[Dict[str, Any]]:
+    """The bill collapsed into the few lines a citizen-facing record needs.
+
+    Rate-based items are one 'pavement works' figure; the lump sums, tax and the
+    awarded value stay visible on their own, because those are the numbers
+    people actually query.
+    """
+    works = sum(line["amount_inr"] for line in boq["lines"] if line["unit"] != "lump sum")
+    charges = [
+        {
+            "label": "Pavement works",
+            "note": "Saw-cutting, tack coat, 50 mm hot-mix patch, compaction & edge sealing",
+            "amount_inr": round(works, 2),
+        }
+    ]
+    for line in boq["lines"]:
+        if line["unit"] == "lump sum":
+            charges.append(
+                {"label": line["description"], "note": "", "amount_inr": line["amount_inr"]}
+            )
+    charges.append(
+        {"label": "GST @ 18%", "note": "On the net payable", "amount_inr": boq["gst_inr"]}
+    )
+    charges.append(
+        {
+            "label": "Engineer's estimate",
+            "note": "Priced from the bill of quantities before tender",
+            "amount_inr": boq["total_inr"],
+        }
+    )
+    if awarded_inr is not None:
+        delta = boq["total_inr"] - awarded_inr
+        charges.append(
+            {
+                "label": "Awarded contract value",
+                "note": (
+                    f"Rs {abs(delta):,.0f} {'below' if delta >= 0 else 'above'} the estimate"
+                ),
+                "amount_inr": round(awarded_inr, 2),
+            }
+        )
+    return charges
+
+
 def demo_self_check() -> None:
     """Smallest runnable check that fails if the domain rules break."""
     portal, why = route_to_portal(19.076, 72.8777)
@@ -511,6 +664,51 @@ def demo_self_check() -> None:
     assert severity_band(1.0)[0] == "Low"
     assert severity_band(3.0)[0] == "Moderate"
     assert severity_band(4.5)[0] == "Severe"
+
+    assert defect_liability_months("Full-depth reconstruction") == 24
+    assert defect_liability_months("Hot-mix pothole patching") == 12
+    assert defect_liability_months("Emergency 24h repair") == 6
+    assert defect_liability_months("") == DEFAULT_LIABILITY_MONTHS
+    assert traffic_reopen_hours(0.0) == 4
+    assert traffic_reopen_hours(2.0) == 5
+    assert traffic_reopen_hours(500.0) == 12
+
+    note = handover_note(
+        7, "MCGM/RTD/2026/00007", "SafeStreet Civil Works", "Emergency 24h repair",
+        4, 2.2, 5, ["Hill Road, Bandra West"], 2026,
+    )
+    assert note["reference"].startswith("SCW/WC/2026/"), note["reference"]
+    assert note["defect_liability_months"] == 6
+    assert "2.2 m²" in note["statement"] and "5 potholes" in note["statement"]
+    assert "MCGM/RTD/2026/00007" in note["statement"]
+    assert note["signed_by"].startswith("SafeStreet Civil Works")
+    # Deterministic: the same case always yields the same reference.
+    assert handover_note(7, "MCGM/RTD/2026/00007", "SafeStreet Civil Works",
+                         "Emergency 24h repair", 4, 2.2, 5,
+                         ["Hill Road, Bandra West"], 2026)["reference"] == note["reference"]
+    # Singular phrasing and the multi-road suffix both hold.
+    one = handover_note(1, None, "Konkan Asphalt & Paving Co.", "Hot-mix pothole patching",
+                        6, 0.5, 1, ["A Road", "B Road"], 2026)
+    assert "1 pothole." in one["statement"] or "1 pothole," in one["statement"]
+    assert "adjoining stretch" in one["statement"]
+    assert "case #1" in one["statement"]
+
+    summary = work_summary(["Hill Road"], "Collector", 5, 2.2, "SafeStreet Civil Works",
+                           4, 1.5, 2.0, 11800.0, 80.0)
+    assert "5 potholes" in summary and "inside the promised window" in summary
+    assert "80%" in summary
+    late = work_summary(["Hill Road"], "Arterial", 1, 0.5, "X", 3, 4.0, 2.0, 100.0, 50.0)
+    assert "past the promised window" in late
+
+    boq = build_boq(2.0)
+    charges = charge_summary(boq, 9000.0)
+    labels = [c["label"] for c in charges]
+    assert labels[0] == "Pavement works"
+    assert "GST @ 18%" in labels and "Awarded contract value" in labels
+    # The works figure must exclude the lump sums it sits alongside.
+    lump = sum(line["amount_inr"] for line in boq["lines"] if line["unit"] == "lump sum")
+    assert abs(charges[0]["amount_inr"] + lump - boq["subtotal_inr"] - lump) < 0.01
+    assert charge_summary(boq, None)[-1]["label"] == "Engineer's estimate"
     print("civic.py self-check OK")
 
 
