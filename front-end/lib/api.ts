@@ -15,6 +15,7 @@ import type {
   Portal,
   Stage,
   CaseView,
+  CitizenCaseView,
   CompletedRepair,
   PipelineEvent,
   PipelineStats,
@@ -250,6 +251,11 @@ export function getCases(): Promise<CaseView[]> {
 
 export function getCase(caseId: number): Promise<CaseView> {
   return getJson<CaseView>(`/api/civic/cases/${caseId}`);
+}
+
+/** Public, unauthenticated status view for the citizen who filed a report. */
+export function getCitizenCase(caseId: number): Promise<CitizenCaseView> {
+  return getJson<CitizenCaseView>(`/api/civic/cases/${caseId}/citizen`);
 }
 
 export function createCase(inspectionIds: number[]): Promise<CaseView> {

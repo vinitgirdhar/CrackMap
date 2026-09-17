@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { TopNavBar } from "@/components/TopNavBar";
 import { HeroSection } from "@/components/HeroSection";
 import { StepperPipeline } from "@/components/StepperPipeline";
-import { SubNavRow } from "@/components/SubNavRow";
 import { DetectorView } from "@/components/DetectorView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { CivicPipelineView } from "@/components/CivicPipelineView";
@@ -49,8 +48,6 @@ export default function Home() {
       <HeroSection summary={summary} />
 
       <StepperPipeline />
-
-      <SubNavRow activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="workspace-container" style={{ display: activeTab === "detect" ? "block" : "none" }}>
         <DetectorView />

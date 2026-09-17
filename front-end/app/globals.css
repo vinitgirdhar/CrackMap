@@ -284,7 +284,7 @@ button {
     justify-content: space-between;
     position: relative;
     padding: 12px 0 28px 0;
-    margin-bottom: 8px;
+    margin-bottom: 24px;
 }
 
 /* Track and fill span first node center to last node center; the exact
@@ -354,47 +354,6 @@ button {
 }
 
 /* ── 4. Sub-Navigation Filter Pills ── */
-.sub-nav-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.sub-filter-pills {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.sub-pill {
-    padding: 8px 20px;
-    border-radius: var(--radius-pill);
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.sub-pill:hover {
-    background: #f1f5f9;
-}
-
-.sub-pill.active {
-    background: var(--card-dark);
-    color: #ffffff;
-    border-color: var(--card-dark);
-}
-
-.sub-tools-group {
-    display: flex;
-    gap: 8px;
-}
 
 /* ── 5. Main Dashboard Cards Grid ── */
 .dashboard-grid {

@@ -372,6 +372,78 @@ def stage_index(status: str) -> int:
     return STAGE_INDEX.get(status, 0)
 
 
+# ── Citizen-facing stage collapse ───────────────────────────────────────────
+# The 9 internal stages carry operational detail (which portal, which
+# contractor, what it cost) that a citizen tracker must never show. This
+# collapses them to 7 stages a citizen actually needs, with no contractor
+# identity and no money anywhere in the wording.
+
+CITIZEN_STAGES = [
+    {
+        "key": "REPORTED",
+        "label": "Reported",
+        "description": "Your report was received and logged for review.",
+    },
+    {
+        "key": "FILED",
+        "label": "Filed with the Authority",
+        "description": "Routed to the municipal department responsible for this road.",
+    },
+    {
+        "key": "UNDER_REVIEW",
+        "label": "Under Review",
+        "description": "A municipal officer has acknowledged the report and is reviewing it.",
+    },
+    {
+        "key": "REPAIR_ASSIGNED",
+        "label": "Repair Team Assigned",
+        "description": "A repair crew has been assigned to fix this road.",
+    },
+    {
+        "key": "REPAIR_IN_PROGRESS",
+        "label": "Repair In Progress",
+        "description": "The crew is on site carrying out the repair.",
+    },
+    {
+        "key": "VERIFYING",
+        "label": "Verifying Repair",
+        "description": "The repair is complete and is being inspected.",
+    },
+    {
+        "key": "RESOLVED",
+        "label": "Resolved",
+        "description": "The repair has been verified and the case is closed.",
+    },
+]
+CITIZEN_STAGE_KEYS = [s["key"] for s in CITIZEN_STAGES]
+
+# Internal status -> citizen stage. TENDERED (tender floated, no contractor
+# picked yet) still reads as "under review" to a citizen — a repair crew is
+# not "assigned" until WORK_ORDERED actually names one internally.
+_STATUS_TO_CITIZEN_STAGE = {
+    "DRAFT": "REPORTED",
+    "SUBMITTED": "FILED",
+    "ACKNOWLEDGED": "UNDER_REVIEW",
+    "TENDERED": "UNDER_REVIEW",
+    "WORK_ORDERED": "REPAIR_ASSIGNED",
+    "IN_REPAIR": "REPAIR_IN_PROGRESS",
+    "REPAIRED": "VERIFYING",
+    "VERIFIED": "RESOLVED",
+    "CLOSED": "RESOLVED",
+}
+
+
+def citizen_progress(status: str) -> List[Dict[str, Any]]:
+    """The 9-stage internal pipeline collapsed to the 7 a citizen sees, each
+    flagged completed/active off the case's real current status."""
+    current_key = _STATUS_TO_CITIZEN_STAGE.get(status, "REPORTED")
+    current_idx = CITIZEN_STAGE_KEYS.index(current_key)
+    return [
+        {**stage, "completed": i < current_idx, "active": i == current_idx}
+        for i, stage in enumerate(CITIZEN_STAGES)
+    ]
+
+
 def repair_progress(
     awarded_at: Optional[float],
     promised_days: float,
@@ -709,6 +781,32 @@ def demo_self_check() -> None:
     lump = sum(line["amount_inr"] for line in boq["lines"] if line["unit"] == "lump sum")
     assert abs(charges[0]["amount_inr"] + lump - boq["subtotal_inr"] - lump) < 0.01
     assert charge_summary(boq, None)[-1]["label"] == "Engineer's estimate"
+
+    assert len(CITIZEN_STAGES) == 7
+    for status, expected in [
+        ("DRAFT", "REPORTED"),
+        ("SUBMITTED", "FILED"),
+        ("ACKNOWLEDGED", "UNDER_REVIEW"),
+        ("TENDERED", "UNDER_REVIEW"),
+        ("WORK_ORDERED", "REPAIR_ASSIGNED"),
+        ("IN_REPAIR", "REPAIR_IN_PROGRESS"),
+        ("REPAIRED", "VERIFYING"),
+        ("VERIFIED", "RESOLVED"),
+        ("CLOSED", "RESOLVED"),
+    ]:
+        stages = citizen_progress(status)
+        active = next(s for s in stages if s["active"])
+        assert active["key"] == expected, (status, active["key"])
+        # Every earlier citizen stage reads completed, every later one does not.
+        idx = CITIZEN_STAGE_KEYS.index(expected)
+        assert all(s["completed"] == (i < idx) for i, s in enumerate(stages))
+        assert sum(s["active"] for s in stages) == 1
+    # No stage description ever names a contractor or a price — this is the
+    # whole point of the collapse, so pin it down.
+    blob = " ".join(s["description"] for s in CITIZEN_STAGES).lower()
+    for leak in ("rs ", "₹", "contractor", "bid", "quote", "estimate"):
+        assert leak not in blob, leak
+
     print("civic.py self-check OK")
 
 

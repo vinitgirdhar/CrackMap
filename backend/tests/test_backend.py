@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -361,6 +362,120 @@ def test_completed_repairs(client):
 
     assert record["portal"]["code"] == "MCGM"
     assert record["tracking_id"] and record["tracking_id"].startswith("MCGM/")
+
+
+_SEED_CONTRACTOR_NAMES = [
+    "Konkan Asphalt & Paving Co.",
+    "MumbaiRoad Infrastructure Ltd.",
+    "SafeStreet Civil Works",
+    "Maharashtra Pavement Solutions",
+    "GreenLine Municipal Contractors",
+]
+
+
+def _assert_no_leak(payload: dict) -> None:
+    """The citizen route is public and unauthenticated — contractor identity
+    and every money figure must be filtered server-side, not just unrendered.
+    Serialize the whole body and check nothing sensitive is in there."""
+    blob = json.dumps(payload).lower()
+    for name in _SEED_CONTRACTOR_NAMES:
+        assert name.lower() not in blob, f"leaked contractor name: {name}"
+    for leaked_key in (
+        "contractor_id", "contractor_name", "awarded_inr", "estimate_inr",
+        "quoted_inr", "bids", "boq", "charges", "rating", "crew_count",
+    ):
+        assert leaked_key not in blob, f"leaked field: {leaked_key}"
+
+
+def test_citizen_case_view(client):
+    """Public status tracker: a 7-stage timeline, zero contractor/cost leakage,
+    before/after evidence only once resolved."""
+    finding = client.post("/api/inspections", json=_finding_payload(road_name="Turner Road")).json()
+    case_id = client.post("/api/civic/cases", json={"inspection_ids": [finding["id"]]}).json()["id"]
+
+    # Freshly opened: reported, nothing resolved, no evidence yet.
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert view["case_id"] == case_id
+    assert view["road_name"] == "Turner Road"
+    assert view["priority"] in ("P1", "P2", "P3", "P4")
+    assert view["priority_label"]
+    assert view["is_resolved"] is False
+    assert view["before_image"] == "" and view["after_image"] == ""
+    assert view["fix_summary"] is None and view["description"] is None
+    assert len(view["stages"]) == 7
+    assert [s["key"] for s in view["stages"]] == civic.CITIZEN_STAGE_KEYS
+    active = [s for s in view["stages"] if s["active"]]
+    assert len(active) == 1 and active[0]["key"] == "REPORTED"
+    assert all(not s["completed"] for s in view["stages"])
+    _assert_no_leak(view)
+
+    # File it — citizen sees "Filed", authority is public info, still no bids/cost.
+    client.post(f"/api/civic/cases/{case_id}/submit")
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert view["authority"] == "Brihanmumbai Municipal Corporation"
+    assert view["tracking_id"] and view["tracking_id"].startswith("MCGM/")
+    active = next(s for s in view["stages"] if s["active"])
+    assert active["key"] == "FILED"
+    assert next(s for s in view["stages"] if s["key"] == "REPORTED")["completed"] is True
+    _assert_no_leak(view)
+
+    acked = _await_stage(client, case_id, "ACKNOWLEDGED")
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert next(s for s in view["stages"] if s["active"])["key"] == "UNDER_REVIEW"
+    assert next(s for s in view["stages"] if s["key"] == "UNDER_REVIEW")["at"] == acked["acknowledged_at"]
+    _assert_no_leak(view)
+
+    # Tendering: still "under review" to a citizen — no contractor chosen yet.
+    client.post(f"/api/civic/cases/{case_id}/tender")
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert next(s for s in view["stages"] if s["active"])["key"] == "UNDER_REVIEW"
+    _assert_no_leak(view)
+
+    tendered = client.get(f"/api/civic/cases/{case_id}").json()
+    winner_id = tendered["bids"][0]["contractor_id"]
+    winner_name = tendered["bids"][0]["contractor_name"]
+    client.post(f"/api/civic/cases/{case_id}/award", json={"contractor_id": winner_id})
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert next(s for s in view["stages"] if s["active"])["key"] == "REPAIR_ASSIGNED"
+    assert winner_name.lower() not in json.dumps(view).lower()
+    _assert_no_leak(view)
+
+    _await_stage(client, case_id, "IN_REPAIR")
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert next(s for s in view["stages"] if s["active"])["key"] == "REPAIR_IN_PROGRESS"
+    _assert_no_leak(view)
+
+    repaired = _await_stage(client, case_id, "REPAIRED")
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert next(s for s in view["stages"] if s["active"])["key"] == "VERIFYING"
+    assert next(s for s in view["stages"] if s["key"] == "VERIFYING")["at"] == repaired["repaired_at"]
+    _assert_no_leak(view)
+
+    from io import BytesIO
+    from PIL import Image
+
+    blank = BytesIO()
+    Image.new("RGB", (640, 480), (90, 90, 90)).save(blank, format="JPEG")
+    client.post(
+        f"/api/civic/cases/{case_id}/verify",
+        files={"file": ("after_clean.jpg", blank.getvalue(), "image/jpeg")},
+    )
+    client.post(f"/api/civic/cases/{case_id}/close")
+
+    view = client.get(f"/api/civic/cases/{case_id}/citizen").json()
+    assert view["status"] == "CLOSED"
+    assert view["is_resolved"] is True
+    active = next(s for s in view["stages"] if s["active"])
+    assert active["key"] == "RESOLVED"
+    assert all(s["completed"] for s in view["stages"] if s["key"] != "RESOLVED")
+    assert view["before_image"].startswith("data:image")
+    assert view["after_image"].startswith("data:image")
+    assert view["fix_summary"] == f"Patched {finding['total_defects']} potholes across {view['patch_area_m2']} m² on Turner Road."
+    assert "Turner Road" in view["description"]
+    assert "%" in view["description"]
+    _assert_no_leak(view)
+
+    assert client.get("/api/civic/cases/999999/citizen").status_code == 404
 
 
 def test_stats_and_events(client):

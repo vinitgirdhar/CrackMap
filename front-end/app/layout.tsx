@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./civic.css";
+import "./citizen.css";
 
 export const metadata: Metadata = {
   title: "CrackMap — Road Health Intelligence",

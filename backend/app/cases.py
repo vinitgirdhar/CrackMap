@@ -475,6 +475,81 @@ def get_case_view(case_id: int, include_images: bool = True) -> Optional[Dict[st
     return assemble(reconcile(case), include_images)
 
 
+def citizen_view(case_id: int) -> Optional[Dict[str, Any]]:
+    """Citizen-safe projection of a case: a 7-stage status timeline, and once
+    resolved, the before/after evidence with a cost-free fix summary.
+
+    This is a *server-side* filter, not a UI one — contractor identity, bids
+    and every money figure are left out of the payload entirely rather than
+    just unrendered, since the public route this backs has no authentication.
+    """
+    case = db.get_case(case_id)
+    if case is None:
+        return None
+    case = reconcile(case)
+
+    findings = _findings_for(case)
+    primary = next((f for f in findings if f["lat"] is not None), findings[0] if findings else None)
+    portal = civic.get_portal(case["portal_code"]) if case["portal_code"] else None
+
+    # First timestamp per stage from the audit trail — the one thing not
+    # already sitting on a dedicated case column (repair start has no column
+    # of its own; the event log is where "crew mobilised" actually lives).
+    first_event_at: Dict[str, float] = {}
+    for event in db.list_events(case_id):
+        first_event_at.setdefault(event["stage"], event["created_at"])
+
+    stage_time = {
+        "REPORTED": case["created_at"],
+        "FILED": case["submitted_at"],
+        "UNDER_REVIEW": case["acknowledged_at"],
+        "REPAIR_ASSIGNED": case["awarded_at"],
+        "REPAIR_IN_PROGRESS": first_event_at.get("IN_REPAIR"),
+        "VERIFYING": case["repaired_at"],
+        "RESOLVED": case["closed_at"] or case["verified_at"],
+    }
+    stages = [{**stage, "at": stage_time.get(stage["key"])} for stage in civic.citizen_progress(case["status"])]
+
+    resolved = case["status"] in ("VERIFIED", "CLOSED")
+    verification = case["verification"]
+    road_name = primary["road_name"] if primary else "Unrecorded location"
+
+    description = None
+    fix_summary = None
+    if resolved and verification:
+        description = (
+            f"The reported damage on {road_name} has been repaired and verified by an AI "
+            f"re-inspection, clearing {verification['effectiveness_pct']:.0f}% of the originally "
+            f"detected damage."
+        )
+        area = case["patch_area_m2"] or 0.0
+        count = case["total_potholes"]
+        fix_summary = f"Patched {count} pothole{'' if count == 1 else 's'} across {area} m² on {road_name}."
+
+    return {
+        "case_id": case["id"],
+        "tracking_id": case["tracking_id"],
+        "status": case["status"],
+        "authority": portal["authority"] if portal else None,
+        "department": portal["department"] if portal else None,
+        "road_name": road_name,
+        "address": (primary or {}).get("address"),
+        "lat": (primary or {}).get("lat"),
+        "lon": (primary or {}).get("lon"),
+        "total_potholes": case["total_potholes"],
+        "patch_area_m2": case["patch_area_m2"],
+        "priority": case["priority"],
+        "priority_label": case["priority_label"],
+        "reported_at": case["created_at"],
+        "stages": stages,
+        "is_resolved": resolved,
+        "before_image": (primary or {}).get("annotated_image", "") if resolved else "",
+        "after_image": (verification or {}).get("annotated_image", "") if resolved else "",
+        "description": description,
+        "fix_summary": fix_summary,
+    }
+
+
 def pipeline_stats() -> Dict[str, Any]:
     """Board-level counters: where cases sit, what is at risk, what it cost."""
     views = list_case_views(include_images=False)

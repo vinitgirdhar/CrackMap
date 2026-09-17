@@ -463,3 +463,47 @@ export interface CompletedRepair {
   note: HandoverNote;
   note_issued_at: number | null;
 }
+
+/* ── Citizen-facing tracker ───────────────────────────────────────────────
+   Server-filtered projection of a case: no contractor identity, no money. */
+
+export type CitizenStageKey =
+  | "REPORTED"
+  | "FILED"
+  | "UNDER_REVIEW"
+  | "REPAIR_ASSIGNED"
+  | "REPAIR_IN_PROGRESS"
+  | "VERIFYING"
+  | "RESOLVED";
+
+export interface CitizenStage {
+  key: CitizenStageKey;
+  label: string;
+  description: string;
+  completed: boolean;
+  active: boolean;
+  at: number | null;
+}
+
+export interface CitizenCaseView {
+  case_id: number;
+  tracking_id: string | null;
+  status: CaseStatus;
+  authority: string | null;
+  department: string | null;
+  road_name: string;
+  address: string | null;
+  lat: number | null;
+  lon: number | null;
+  total_potholes: number;
+  patch_area_m2: number | null;
+  priority: string | null;
+  priority_label: string | null;
+  reported_at: number;
+  stages: CitizenStage[];
+  is_resolved: boolean;
+  before_image: string;
+  after_image: string;
+  description: string | null;
+  fix_summary: string | null;
+}

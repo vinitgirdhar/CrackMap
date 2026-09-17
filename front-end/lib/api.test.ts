@@ -18,6 +18,7 @@ import {
   getPipelineEvents,
   getCases,
   getCase,
+  getCitizenCase,
   createCase,
   submitCase,
   tenderCase,
@@ -202,6 +203,12 @@ describe("Civic pipeline wrappers", () => {
     const fetchMock = mockFetchOnce({ id: 4 });
     await getCase(4);
     expect(fetchMock).toHaveBeenCalledWith("/api/civic/cases/4");
+  });
+
+  it("getCitizenCase hits the citizen-view path", async () => {
+    const fetchMock = mockFetchOnce({ case_id: 4 });
+    await getCitizenCase(4);
+    expect(fetchMock).toHaveBeenCalledWith("/api/civic/cases/4/citizen");
   });
 
   it("createCase posts inspection_ids", async () => {

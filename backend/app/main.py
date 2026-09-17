@@ -19,6 +19,7 @@ from .schemas import (
     AwardRequest,
     CaseCreateRequest,
     CaseViewModel,
+    CitizenCaseViewModel,
     CompanionImageResult,
     CompletedRepairModel,
     ContractorModel,
@@ -343,6 +344,22 @@ async def get_case(case_id: int):
     if view is None:
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
     return CaseViewModel(**view)
+
+
+@app.get(
+    "/api/civic/cases/{case_id}/citizen",
+    response_model=CitizenCaseViewModel,
+    tags=["Civic Pipeline"],
+)
+async def get_citizen_case(case_id: int):
+    """Public, unauthenticated status view for the citizen who filed the
+    report. A 7-stage timeline, and once resolved, before/after evidence with
+    a cost-free summary — contractor identity and every money figure are
+    filtered out server-side, never just hidden in the UI."""
+    view = cases.citizen_view(case_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+    return CitizenCaseViewModel(**view)
 
 
 @app.post("/api/civic/cases", response_model=CaseViewModel, tags=["Civic Pipeline"])

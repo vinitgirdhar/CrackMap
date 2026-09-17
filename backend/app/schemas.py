@@ -481,3 +481,40 @@ class CompletedRepairModel(BaseModel):
 
     note: HandoverNoteModel
     note_issued_at: Optional[float] = None
+
+
+# ── Citizen-facing case view ────────────────────────────────────────────────
+
+class CitizenStageModel(BaseModel):
+    key: str
+    label: str
+    description: str
+    completed: bool
+    active: bool
+    at: Optional[float] = None
+
+
+class CitizenCaseViewModel(BaseModel):
+    """Citizen-safe projection: a status timeline plus, once resolved, the
+    before/after evidence and a cost-free fix summary. No contractor
+    identity, no bids, no money — filtered server-side, not just unrendered."""
+    case_id: int
+    tracking_id: Optional[str] = None
+    status: str
+    authority: Optional[str] = None
+    department: Optional[str] = None
+    road_name: str
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    total_potholes: int
+    patch_area_m2: Optional[float] = None
+    priority: Optional[str] = None
+    priority_label: Optional[str] = None
+    reported_at: float
+    stages: List[CitizenStageModel]
+    is_resolved: bool
+    before_image: str = ""
+    after_image: str = ""
+    description: Optional[str] = None
+    fix_summary: Optional[str] = None

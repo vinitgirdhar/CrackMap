@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Route, RefreshCw, Check } from "lucide-react";
+import Link from "next/link";
+import { Route, RefreshCw, Check, Megaphone, SlidersHorizontal, Settings2 } from "lucide-react";
 import type { SystemInfo, TabKey } from "@/lib/types";
+import { FilterControlsPopover } from "./FilterControlsPopover";
+import { SettingsModal } from "./SettingsModal";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "detect", label: "AI Inspector" },
@@ -20,6 +23,8 @@ interface TopNavBarProps {
 export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: TopNavBarProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [justRefreshed, setJustRefreshed] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -75,6 +80,28 @@ export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: Top
       </div>
 
       <div className="nav-actions">
+        <Link className="report-pothole-link" href="/report" title="Public reporting page for citizens">
+          <Megaphone size={14} />
+          Report a Pothole
+        </Link>
+        <button
+          className={`action-circle-btn${isFilterOpen ? " is-active" : ""}`}
+          title="Inspection & filter controls"
+          onClick={() => setIsFilterOpen(!isFilterOpen)}
+          type="button"
+          aria-label="Inspection and filter controls"
+        >
+          <SlidersHorizontal size={16} />
+        </button>
+        <button
+          className={`action-circle-btn${isSettingsOpen ? " is-active" : ""}`}
+          title="System preferences & settings"
+          onClick={() => setIsSettingsOpen(true)}
+          type="button"
+          aria-label="System settings"
+        >
+          <Settings2 size={16} />
+        </button>
         <button
           className={`action-circle-btn refresh-btn${isRefreshing ? " is-refreshing" : ""}${justRefreshed ? " just-refreshed" : ""}`}
           title={justRefreshed ? "Telemetry & metrics refreshed!" : "Refresh all live data"}
@@ -90,6 +117,9 @@ export function TopNavBar({ activeTab, onTabChange, systemInfo, onRefresh }: Top
           )}
         </button>
       </div>
+
+      <FilterControlsPopover isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }
